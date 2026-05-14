@@ -13,7 +13,7 @@ DRAI는 의료 표준(FHIR)을 준수하면서 AI 추론 결과도 보존해야 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │           Aurora Serverless v2 클러스터                   │
-│              (drai-aurora-cluster)                      │
+│              (say2-6team-aurora-cluster)                      │
 │                                                         │
 │   ┌─────────────────┐      ┌─────────────────┐         │
 │   │    drai_ops     │      │      hapi        │         │

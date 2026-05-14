@@ -301,9 +301,9 @@ backup:
 
 ```yaml
 instances:
-  - identifier: drai-writer
+  - identifier: say2-6team-writer
     promotion_tier: 0      # Primary (읽기/쓰기)
-  - identifier: drai-reader
+  - identifier: say2-6team-reader
     promotion_tier: 1      # Replica (읽기 전용, 장애 시 자동 승격)
 ```
 

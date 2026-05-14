@@ -50,7 +50,7 @@ say2-6-final/
 ## DB 구조 — 같은 클러스터에 2개 DB
 
 ```
-Aurora Serverless v2 클러스터 (drai-aurora-cluster)
+Aurora Serverless v2 클러스터 (say2-6team-aurora-cluster)
 │
 ├── drai_ops  ← 우리가 직접 관리하는 운영 DB
 │   ├── encounters         (응급실 방문 1건)
@@ -228,8 +228,8 @@ Layer 1: 관측          cloudwatch.yaml + logging.yaml
 | ALB-TargetResponseTime-High | 평균 응답 3초 초과 | ⚠️ WARNING |
 
 **알림 채널**:
-- `drai-critical-alerts` → 이메일 + Slack #drai-alerts
-- `drai-warning-alerts` → 이메일
+- `say2-6team-critical-alerts` → 이메일 + Slack #say2-6team-alerts
+- `say2-6team-warning-alerts` → 이메일
 
 ---
 

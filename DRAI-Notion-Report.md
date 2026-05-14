@@ -38,7 +38,7 @@ AWS Aurora Serverless v2는 사용한 만큼만 비용이 나가는 PostgreSQL �
 같은 Aurora 클러스터 안에 DB를 2개 운영한다.
 
 ```
-Aurora Serverless v2 클러스터 (drai-aurora-cluster)
+Aurora Serverless v2 클러스터 (say2-6team-aurora-cluster)
 │
 ├── drai_ops   ← 우리가 직접 설계하고 관리하는 운영 DB
 │
@@ -268,7 +268,7 @@ Layer 1  cloudwatch.yaml    "로그 수집 + 메트릭 시각화"
 | ALB-TargetResponseTime-High | 평균 응답 3초 초과 | ⚠️ WARNING |
 
 **알림 채널**:
-- 🔴 CRITICAL → 이메일 + Slack #drai-alerts (즉시 대응)
+- 🔴 CRITICAL → 이메일 + Slack #say2-6team-alerts (즉시 대응)
 - ⚠️ WARNING → 이메일 (주의 필요)
 
 ---

@@ -86,7 +86,7 @@ monitoring/
               SNS Topic
                     │
                     ├── 이메일 → oncall-team@hospital.co.kr
-                    ├── Slack → #drai-alerts 채널
+                    ├── Slack → #say2-6team-alerts 채널
                     └── Lambda → 자동 교정 (일부 규칙)
 ```
 

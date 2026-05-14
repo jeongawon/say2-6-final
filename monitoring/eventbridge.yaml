@@ -28,7 +28,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -50,7 +50,7 @@ event_bus:
 rules:
 
   # Aurora 장애 감지
-  - name: drai-aurora-failover
+  - name: say2-6team-aurora-failover
     description: "Aurora 페일오버 발생 시 즉시 알림"
     event_pattern:
       source: ["aws.rds"]
@@ -59,11 +59,11 @@ rules:
         EventCategories: ["failover"]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # Aurora 스토리지 이벤트
-  - name: drai-aurora-storage
+  - name: say2-6team-aurora-storage
     description: "Aurora 스토리지 관련 이벤트"
     event_pattern:
       source: ["aws.rds"]
@@ -72,26 +72,26 @@ rules:
         EventCategories: ["storage"]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-warning-alerts
     severity: warning
 
   # ECS 태스크 상태 변경 (비정상 종료)
-  - name: drai-ecs-task-stopped
+  - name: say2-6team-ecs-task-stopped
     description: "ECS 태스크 비정상 종료 감지"
     event_pattern:
       source: ["aws.ecs"]
       detail-type: ["ECS Task State Change"]
       detail:
-        clusterArn: ["arn:aws:ecs:ap-northeast-2:ACCOUNT_ID:cluster/drai-cluster"]
+        clusterArn: ["arn:aws:ecs:ap-northeast-2:ACCOUNT_ID:cluster/say2-6team-ecs-cluster"]
         lastStatus: ["STOPPED"]
         stoppedReason: [{"anything-but": ["Essential container in task exited"]}]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # ECS 배포 실패
-  - name: drai-ecs-deployment-failed
+  - name: say2-6team-ecs-deployment-failed
     description: "ECS 서비스 배포 실패"
     event_pattern:
       source: ["aws.ecs"]
@@ -100,11 +100,11 @@ rules:
         eventName: ["SERVICE_DEPLOYMENT_FAILED"]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # Secrets Manager 로테이션 실패
-  - name: drai-secret-rotation-failed
+  - name: say2-6team-secret-rotation-failed
     description: "시크릿 자동 로테이션 실패"
     event_pattern:
       source: ["aws.secretsmanager"]
@@ -113,7 +113,7 @@ rules:
         eventName: ["RotationFailed"]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # ──────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ rules:
   # ──────────────────────────────────────────────────────────
 
   # 루트 계정 로그인
-  - name: drai-root-login
+  - name: say2-6team-root-login
     description: "AWS 루트 계정 콘솔 로그인 감지"
     event_pattern:
       source: ["aws.signin"]
@@ -131,11 +131,11 @@ rules:
           type: ["Root"]
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # Security Group 변경
-  - name: drai-sg-change
+  - name: say2-6team-sg-change
     description: "Security Group 인바운드 규칙 변경 감지"
     event_pattern:
       source: ["aws.ec2"]
@@ -146,14 +146,14 @@ rules:
           - RevokeSecurityGroupIngress
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-warning-alerts
       - type: lambda
-        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-sg-audit
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:say2-6team-sg-audit
         description: "SG 변경 내역 감사 로그 기록"
     severity: warning
 
   # IAM 정책 변경
-  - name: drai-iam-policy-change
+  - name: say2-6team-iam-policy-change
     description: "IAM 정책 생성/수정/삭제 감지"
     event_pattern:
       source: ["aws.iam"]
@@ -168,11 +168,11 @@ rules:
           - AttachUserPolicy
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-warning-alerts
     severity: warning
 
   # S3 버킷 정책 변경 (데이터 유출 위험)
-  - name: drai-s3-policy-change
+  - name: say2-6team-s3-policy-change
     description: "S3 버킷 정책/ACL 변경 감지"
     event_pattern:
       source: ["aws.s3"]
@@ -184,11 +184,11 @@ rules:
           - DeleteBucketPolicy
         requestParameters:
           bucketName:
-            - drai-clinical-data
-            - drai-model-artifacts
+            - say2-6team-clinical-data
+            - say2-6team-model-artifacts
     targets:
       - type: sns
-        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:say2-6team-critical-alerts
     severity: critical
 
   # ──────────────────────────────────────────────────────────
@@ -196,19 +196,19 @@ rules:
   # ──────────────────────────────────────────────────────────
 
   # 매일 오전 9시 헬스체크 리포트
-  - name: drai-daily-health-report
+  - name: say2-6team-daily-health-report
     description: "매일 09:00 KST 시스템 헬스체크 리포트 생성"
     schedule: "cron(0 0 * * ? *)"    # UTC 00:00 = KST 09:00
     targets:
       - type: lambda
-        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-health-report
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:say2-6team-health-report
     severity: info
 
   # 매주 월요일 비용 리포트
-  - name: drai-weekly-cost-report
+  - name: say2-6team-weekly-cost-report
     description: "매주 월요일 09:00 KST 주간 비용 리포트"
     schedule: "cron(0 0 ? * MON *)"
     targets:
       - type: lambda
-        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-cost-report
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:say2-6team-cost-report
     severity: info

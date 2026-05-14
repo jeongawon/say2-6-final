@@ -25,7 +25,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -47,7 +47,7 @@ log_groups:
   - name: /drai/central-backend
     retention_days: 90
     description: "중앙백엔드 애플리케이션 로그 (FastAPI + Uvicorn)"
-    kms_key: alias/drai-logs-key
+    kms_key: alias/say2-6team-logs-key
     tags:
       - Key: Project
         Value: "!Ref ProjectName"
@@ -62,7 +62,7 @@ log_groups:
   - name: /drai/hapi-fhir
     retention_days: 90
     description: "HAPI FHIR 서버 로그 (Java)"
-    kms_key: alias/drai-logs-key
+    kms_key: alias/say2-6team-logs-key
     tags:
       - Key: Project
         Value: "!Ref ProjectName"
@@ -77,7 +77,7 @@ log_groups:
   - name: /drai/aurora/postgresql
     retention_days: 180
     description: "Aurora PostgreSQL 쿼리 로그 (pgaudit 포함)"
-    kms_key: alias/drai-logs-key
+    kms_key: alias/say2-6team-logs-key
     tags:
       - Key: Project
         Value: "!Ref ProjectName"
@@ -279,7 +279,7 @@ dashboards:
         type: metric
         metric: AWS/RDS/CPUUtilization
         dimensions:
-          DBClusterIdentifier: drai-aurora-cluster
+          DBClusterIdentifier: say2-6team-aurora-cluster
         period: 60
         stat: Average
 
@@ -287,7 +287,7 @@ dashboards:
         type: metric
         metric: AWS/RDS/ServerlessDatabaseCapacity
         dimensions:
-          DBClusterIdentifier: drai-aurora-cluster
+          DBClusterIdentifier: say2-6team-aurora-cluster
         period: 60
         stat: Average
 

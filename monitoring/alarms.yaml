@@ -10,8 +10,8 @@
 #   4. ALB 알람          — 5xx 에러, 응답 시간, Unhealthy 타겟
 #
 # 알림 채널:
-#   - drai-critical-alerts : 즉시 대응 필요 → 이메일 + Slack
-#   - drai-warning-alerts  : 주의 필요 → 이메일
+#   - say2-6team-critical-alerts : 즉시 대응 필요 → 이메일 + Slack
+#   - say2-6team-warning-alerts  : 주의 필요 → 이메일
 #
 # 연관 파일:
 #   - cloudwatch.yaml  : 알람이 참조하는 메트릭 정의
@@ -29,7 +29,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -44,16 +44,16 @@ common_tags:
 
 sns_topics:
 
-  - name: drai-critical-alerts
+  - name: say2-6team-critical-alerts
     description: "CRITICAL 알림 — 즉시 대응 필요"
     subscriptions:
       - protocol: email
         endpoint: oncall-team@hospital.co.kr
       - protocol: https
         endpoint: https://hooks.slack.com/services/XXXXX/YYYYY/ZZZZZ
-        description: "Slack #drai-alerts 채널"
+        description: "Slack #say2-6team-alerts 채널"
 
-  - name: drai-warning-alerts
+  - name: say2-6team-warning-alerts
     description: "WARNING 알림 — 주의 필요"
     subscriptions:
       - protocol: email
@@ -70,15 +70,15 @@ alarms:
     namespace: AWS/RDS
     metric: CPUUtilization
     dimensions:
-      DBClusterIdentifier: drai-aurora-cluster
+      DBClusterIdentifier: say2-6team-aurora-cluster
     statistic: Average
     period: 300
     threshold: 80
     comparison: GreaterThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-warning-alerts
-      ok: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
+      ok: say2-6team-warning-alerts
 
   # Aurora ACU 최대치 도달
   - name: Aurora-ACU-Max
@@ -86,14 +86,14 @@ alarms:
     namespace: AWS/RDS
     metric: ServerlessDatabaseCapacity
     dimensions:
-      DBClusterIdentifier: drai-aurora-cluster
+      DBClusterIdentifier: say2-6team-aurora-cluster
     statistic: Average
     period: 300
     threshold: 3.6    # max_acu 4.0의 90%
     comparison: GreaterThanThreshold
     evaluation_periods: 3
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   # Aurora 연결 수 과다
   - name: Aurora-Connections-High
@@ -101,14 +101,14 @@ alarms:
     namespace: AWS/RDS
     metric: DatabaseConnections
     dimensions:
-      DBClusterIdentifier: drai-aurora-cluster
+      DBClusterIdentifier: say2-6team-aurora-cluster
     statistic: Maximum
     period: 300
     threshold: 100
     comparison: GreaterThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
 
   # Aurora 여유 메모리 부족
   - name: Aurora-FreeableMemory-Low
@@ -116,14 +116,14 @@ alarms:
     namespace: AWS/RDS
     metric: FreeableMemory
     dimensions:
-      DBClusterIdentifier: drai-aurora-cluster
+      DBClusterIdentifier: say2-6team-aurora-cluster
     statistic: Minimum
     period: 300
     threshold: 268435456    # 256MB in bytes
     comparison: LessThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   # ──────────────────────────────────────────────────────────
   # 2. ECS 서비스 알람 (중앙백엔드)
@@ -134,7 +134,7 @@ alarms:
     namespace: AWS/ECS
     metric: CPUUtilization
     dimensions:
-      ClusterName: drai-cluster
+      ClusterName: say2-6team-ecs-cluster
       ServiceName: central-backend
     statistic: Average
     period: 300
@@ -142,14 +142,14 @@ alarms:
     comparison: GreaterThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
 
   - name: Backend-Memory-High
     description: "중앙백엔드 ECS 메모리 85% 초과"
     namespace: AWS/ECS
     metric: MemoryUtilization
     dimensions:
-      ClusterName: drai-cluster
+      ClusterName: say2-6team-ecs-cluster
       ServiceName: central-backend
     statistic: Average
     period: 300
@@ -157,14 +157,14 @@ alarms:
     comparison: GreaterThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
 
   - name: Backend-Task-Unhealthy
     description: "중앙백엔드 Running Task 0개 (서비스 다운)"
     namespace: AWS/ECS
     metric: RunningTaskCount
     dimensions:
-      ClusterName: drai-cluster
+      ClusterName: say2-6team-ecs-cluster
       ServiceName: central-backend
     statistic: Minimum
     period: 60
@@ -172,7 +172,7 @@ alarms:
     comparison: LessThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   # ──────────────────────────────────────────────────────────
   # 3. 임상 비즈니스 알람
@@ -188,7 +188,7 @@ alarms:
     comparison: GreaterThanOrEqualToThreshold
     evaluation_periods: 1
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   - name: Modal-Inference-Error-Spike
     description: "모달 추론 에러 5분간 3회 이상"
@@ -200,7 +200,7 @@ alarms:
     comparison: GreaterThanOrEqualToThreshold
     evaluation_periods: 1
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   - name: High-Latency-Spike
     description: "추론 지연(5초 초과) 5분간 5회 이상"
@@ -212,7 +212,7 @@ alarms:
     comparison: GreaterThanOrEqualToThreshold
     evaluation_periods: 1
     actions:
-      alarm: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
 
   # ──────────────────────────────────────────────────────────
   # 4. ALB 알람
@@ -223,40 +223,40 @@ alarms:
     namespace: AWS/ApplicationELB
     metric: HTTPCode_ELB_5XX_Count
     dimensions:
-      LoadBalancer: drai-alb
+      LoadBalancer: say2-6team-alb
     statistic: Sum
     period: 300
     threshold: 10
     comparison: GreaterThanThreshold
     evaluation_periods: 1
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts
 
   - name: ALB-TargetResponseTime-High
     description: "ALB 평균 응답 시간 3초 초과"
     namespace: AWS/ApplicationELB
     metric: TargetResponseTime
     dimensions:
-      LoadBalancer: drai-alb
+      LoadBalancer: say2-6team-alb
     statistic: Average
     period: 300
     threshold: 3
     comparison: GreaterThanThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-warning-alerts
+      alarm: say2-6team-warning-alerts
 
   - name: ALB-UnhealthyHost
     description: "ALB 뒤 Unhealthy 타겟 존재"
     namespace: AWS/ApplicationELB
     metric: UnHealthyHostCount
     dimensions:
-      LoadBalancer: drai-alb
-      TargetGroup: drai-backend-tg
+      LoadBalancer: say2-6team-alb
+      TargetGroup: say2-6team-backend-tg
     statistic: Maximum
     period: 60
     threshold: 1
     comparison: GreaterThanOrEqualToThreshold
     evaluation_periods: 2
     actions:
-      alarm: drai-critical-alerts
+      alarm: say2-6team-critical-alerts

@@ -28,7 +28,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -161,7 +161,7 @@ retention:
       retention_days: 90
       archive_to_s3: true
       archive_after_days: 30
-      s3_bucket: drai-log-archive
+      s3_bucket: say2-6team-log-archive
       s3_prefix: central-backend/
 
     - log_group: /drai/hapi-fhir

@@ -38,7 +38,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -52,7 +52,7 @@ common_tags:
 
 
 config_recorder:
-  name: drai-config-recorder
+  name: say2-6team-config-recorder
   role_arn: arn:aws:iam::ACCOUNT_ID:role/AWSConfigRole
   recording_group:
     all_supported: false    # 전체 리소스 대신 필요한 것만 기록 (비용 절감)
@@ -74,11 +74,11 @@ config_recorder:
       - AWS::Lambda::Function
 
 delivery_channel:
-  name: drai-config-delivery
-  s3_bucket: drai-config-history
+  name: say2-6team-config-delivery
+  s3_bucket: say2-6team-config-history
   s3_key_prefix: config/
   snapshot_frequency: TwentyFour_Hours    # 일일 스냅샷
-  sns_topic: drai-config-notifications
+  sns_topic: say2-6team-config-notifications
 
 # ──────────────────────────────────────────────────────────
 # Config Rules — 규정 준수 규칙

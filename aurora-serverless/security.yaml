@@ -16,7 +16,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -31,28 +31,28 @@ common_tags:
 
 network:
   vpc:
-    id: vpc-drai
+    id: say2-6team-vpc
     region: ap-northeast-2    # 서울 리전
 
   subnets:
     private_db:
-      - name: subnet-db-az-a
+      - name: say2-6team-private-data-subnet-a
         az: ap-northeast-2a
-        cidr: "10.0.10.0/24"
-      - name: subnet-db-az-c
+        cidr: "10.0.20.0/24"
+      - name: say2-6team-private-data-subnet-c
         az: ap-northeast-2c
-        cidr: "10.0.11.0/24"
+        cidr: "10.0.21.0/24"
 
   security_groups:
     aurora:
-      name: sg-aurora-drai
+      name: say2-6team-aurora-sg
       description: "Aurora Serverless v2 — 내부 접근만 허용"
       ingress:
-        - source: sg-central-backend
+        - source: say2-6team-central-sg
           port: 5432
           protocol: tcp
           description: "중앙백엔드 FastAPI → Aurora (drai_ops DB)"
-        - source: sg-hapi-fhir
+        - source: say2-6team-hapi-sg
           port: 5432
           protocol: tcp
           description: "HAPI FHIR 서버 → Aurora (hapi DB)"
@@ -65,7 +65,7 @@ network:
 encryption:
   at_rest:
     enabled: true
-    kms_key_alias: alias/drai-aurora-key
+    kms_key_alias: alias/say2-6team-aurora-key
     kms_key_description: "Aurora 디스크 암호화 (AES-256)"
 
   in_transit:
@@ -74,11 +74,11 @@ encryption:
     description: "클라이언트 ↔ Aurora 간 TLS 강제"
 
 secrets_manager:
-  secret_name: drai/aurora-credentials
+  secret_name: say2-6team/aurora-credentials
   rotation:
     enabled: true
     schedule: "rate(30 days)"
-    lambda_arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:rotate-aurora-secret
+    lambda_arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:say2-6team-rotate-aurora-secret
   fields:
     - username
     - password
@@ -90,15 +90,15 @@ iam_authentication:
   enabled: true
   description: "IAM 역할 기반 DB 접근 — 비밀번호 없이 토큰 인증"
   roles:
-    - role_name: drai-backend-role
+    - role_name: say2-6team-backend-role
       db_name: drai_ops
       db_user: app_user
       permissions: [SELECT, INSERT, UPDATE, DELETE]
-    - role_name: drai-hapi-role
+    - role_name: say2-6team-hapi-role
       db_name: hapi
       db_user: hapi_user
       permissions: [ALL]
-    - role_name: drai-readonly-role
+    - role_name: say2-6team-readonly-role
       db_name: drai_ops
       db_user: readonly_user
       permissions: [SELECT]

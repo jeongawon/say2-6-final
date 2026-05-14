@@ -30,7 +30,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 common_tags:
@@ -44,13 +44,13 @@ common_tags:
 
 
 trail:
-  name: drai-audit-trail
+  name: say2-6team-audit-trail
   description: "DRAI 시스템 전체 AWS API 호출 감사 로그"
   is_multi_region: false
   region: ap-northeast-2
 
   # S3에 로그 저장
-  s3_bucket: drai-cloudtrail-logs
+  s3_bucket: say2-6team-cloudtrail-logs
   s3_key_prefix: drai/
   enable_log_file_validation: true    # 로그 무결성 검증 (변조 방지)
 
@@ -64,7 +64,7 @@ trail:
   # KMS 암호화
   encryption:
     enabled: true
-    kms_key: alias/drai-cloudtrail-key
+    kms_key: alias/say2-6team-cloudtrail-key
 
   # 이벤트 선택기
   event_selectors:
@@ -80,8 +80,8 @@ trail:
       data_resources:
         - type: AWS::S3::Object
           values:
-            - arn:aws:s3:::drai-clinical-data/    # 임상 데이터 버킷
-            - arn:aws:s3:::drai-model-artifacts/  # 모델 아티팩트 버킷
+            - arn:aws:s3:::say2-6team-clinical-data/    # 임상 데이터 버킷
+            - arn:aws:s3:::say2-6team-model-artifacts/  # 모델 아티팩트 버킷
 
     # Lambda 호출 이벤트
     - name: LambdaDataEvents
@@ -89,7 +89,7 @@ trail:
       data_resources:
         - type: AWS::Lambda::Function
           values:
-            - arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-*
+            - arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:say2-6team-*
 
   tags:
     - Key: Project

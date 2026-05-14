@@ -18,7 +18,7 @@ parameters:
     allowed_values: [dev, staging, prod]
   Owner:
     type: String
-    default: yji
+    default: hkt
     allowed_values: [unassigned, wja, lji, hkt, yji]
 
 # ── 공통 Tags (모든 리소스에 적용) ─────────────────────────
@@ -33,12 +33,12 @@ common_tags:
 # ============================================================
 
 cluster:
-  name: drai-aurora-cluster
+  name: say2-6team-aurora-cluster
   engine: aurora-postgresql
   engine_version: "16.4"
   master_username: admin
   # master_password는 AWS Secrets Manager에서 관리
-  secrets_manager_arn: arn:aws:secretsmanager:ap-northeast-2:ACCOUNT_ID:secret:drai/aurora-credentials
+  secrets_manager_arn: arn:aws:secretsmanager:ap-northeast-2:ACCOUNT_ID:secret:say2-6team/aurora-credentials
 
   databases:
     - name: drai_ops
@@ -51,22 +51,22 @@ cluster:
     max_acu: 4.0        # 피크 시 최대 (응급 상황 대응)
 
   vpc:
-    subnet_group: drai-db-subnet-group
+    subnet_group: say2-6team-data-subnet-group
     subnets:
-      - subnet-private-az-a
-      - subnet-private-az-c
-    security_group: sg-aurora-drai
+      - say2-6team-private-data-subnet-a
+      - say2-6team-private-data-subnet-c
+    security_group: say2-6team-aurora-sg
     ingress_rules:
-      - source: sg-central-backend
+      - source: say2-6team-central-sg
         port: 5432
         description: "중앙백엔드 (FastAPI) → Aurora"
-      - source: sg-hapi-fhir
+      - source: say2-6team-hapi-sg
         port: 5432
         description: "HAPI FHIR 서버 → Aurora (hapi DB)"
 
   encryption:
     enabled: true
-    kms_key: alias/drai-aurora-key
+    kms_key: alias/say2-6team-aurora-key
 
   backup:
     retention_days: 7
@@ -87,10 +87,10 @@ cluster:
       Value: "!Ref Owner"
 
 instances:
-  - identifier: drai-writer
+  - identifier: say2-6team-writer
     instance_class: db.serverless
     promotion_tier: 0                  # Primary writer
 
-  - identifier: drai-reader
+  - identifier: say2-6team-reader
     instance_class: db.serverless
     promotion_tier: 1                  # Read replica (고가용성)

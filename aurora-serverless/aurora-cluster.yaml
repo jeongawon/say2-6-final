@@ -1,0 +1,68 @@
+# ============================================================
+# Aurora Serverless v2 — 클러스터 및 인스턴스 설정
+# 멀티모달 임상 의사결정 지원 시스템 (응급 의료 AI)
+#
+# 같은 클러스터에 2개 DB 운영:
+#   - drai_ops: 운영 DB (AI 추론 결과, 소견서, 이벤트 로그)
+#   - hapi: HAPI FHIR 서버 전용 DB (환자 정보, 바이탈, 검사 결과)
+# ============================================================
+
+cluster:
+  name: drai-aurora-cluster
+  engine: aurora-postgresql
+  engine_version: "16.4"
+  master_username: admin
+  # master_password는 AWS Secrets Manager에서 관리
+  secrets_manager_arn: arn:aws:secretsmanager:ap-northeast-2:ACCOUNT_ID:secret:drai/aurora-credentials
+
+  databases:
+    - name: drai_ops
+      description: "운영 DB — AI 추론 결과, 소견서, WebSocket 이벤트"
+    - name: hapi
+      description: "HAPI FHIR 서버 전용 DB — 환자/바이탈/검사 FHIR 리소스"
+
+  serverless_v2:
+    min_acu: 0.5        # 트래픽 없을 때 최소 (비용 절감)
+    max_acu: 4.0        # 피크 시 최대 (응급 상황 대응)
+
+  vpc:
+    subnet_group: drai-db-subnet-group
+    subnets:
+      - subnet-private-az-a
+      - subnet-private-az-c
+    security_group: sg-aurora-drai
+    ingress_rules:
+      - source: sg-central-backend
+        port: 5432
+        description: "중앙백엔드 (FastAPI) → Aurora"
+      - source: sg-hapi-fhir
+        port: 5432
+        description: "HAPI FHIR 서버 → Aurora (hapi DB)"
+
+  encryption:
+    enabled: true
+    kms_key: alias/drai-aurora-key
+
+  backup:
+    retention_days: 7
+    preferred_window: "03:00-04:00"    # KST 12:00-13:00
+
+  monitoring:
+    enhanced_monitoring: true
+    monitoring_interval: 60            # 초
+    cloudwatch_logs:
+      - postgresql
+
+  tags:
+    Project: drai-multimodal
+    Environment: production
+    Team: team-6
+
+instances:
+  - identifier: drai-writer
+    instance_class: db.serverless
+    promotion_tier: 0                  # Primary writer
+
+  - identifier: drai-reader
+    instance_class: db.serverless
+    promotion_tier: 1                  # Read replica (고가용성)

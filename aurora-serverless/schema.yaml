@@ -1,0 +1,303 @@
+# ============================================================
+# Aurora Serverless v2 — 데이터베이스 스키마 정의
+# drai_ops 운영 DB (HAPI FHIR과 분리)
+#
+# 설계 원칙:
+#   - 환자 기본 정보/바이탈/혈액검사 → HAPI FHIR에 위임
+#   - AI 추론 결과/소견서/이벤트 로그 → 이 DB(drai_ops)에 저장
+#   - FHIR ID를 PK로 그대로 사용 (UUID 변환 불필요)
+#   - 모달 원본 응답을 JSONB로 보존 → Bedrock 종합 판단 시 구조 손실 없이 투입
+# ============================================================
+
+database:
+  name: drai_ops
+  description: "운영 DB — HAPI FHIR(hapi database)과 같은 RDS 인스턴스, 별도 DB"
+
+tables:
+
+  # ──────────────────────────────────────────────────────────
+  # 1. encounters — 응급실 방문 1건
+  #    FHIR Encounter와 1:1 매핑
+  #    encounter_id = FHIR Encounter ID (HAPI 자동 부여)
+  # ──────────────────────────────────────────────────────────
+  - name: encounters
+    description: "응급실 방문 1건 — FHIR Encounter와 1:1 매핑"
+    columns:
+      - name: encounter_id
+        type: TEXT
+        primary_key: true
+        description: "FHIR Encounter ID (HAPI 자동 부여)"
+      - name: patient_id
+        type: TEXT
+        nullable: false
+        description: "FHIR Patient ID"
+      - name: subject_id
+        type: VARCHAR(20)
+        nullable: true
+        description: "MIMIC 원본 환자 ID (S3 ECG/CXR/Lab 조회 키)"
+      - name: chief_complaint
+        type: TEXT
+        nullable: true
+        description: "주 증상"
+      - name: patient_name
+        type: VARCHAR(128)
+        nullable: true
+        description: "환자 이름"
+      - name: patient_age
+        type: INTEGER
+        nullable: true
+        description: "환자 나이"
+      - name: patient_gender
+        type: VARCHAR(16)
+        nullable: true
+        description: "환자 성별"
+      - name: started_at
+        type: TIMESTAMPTZ
+        nullable: false
+        default: NOW()
+        description: "방문 시작 시각"
+      - name: closed_at
+        type: TIMESTAMPTZ
+        nullable: true
+        description: "방문 종료 시각"
+      - name: status
+        type: VARCHAR(20)
+        nullable: false
+        default: "'active'"
+        description: "방문 상태 — 'active' | 'closed'"
+        note: "CHECK 제약 없음. 애플리케이션 레벨에서 값 검증"
+      - name: metadata
+        type: JSONB
+        default: "'{}'::jsonb"
+        description: "추가 메타데이터 (유연한 확장용)"
+    indexes:
+      - name: idx_enc_patient
+        columns: [patient_id]
+      - name: idx_enc_subject
+        columns: [subject_id]
+      - name: idx_enc_status_start
+        columns: [status, started_at]
+        order: DESC
+        description: "상태별 최신 방문 조회"
+
+  # ──────────────────────────────────────────────────────────
+  # 2. modal_results — 각 모달(ECG/CXR/LAB) 원본 응답 (핵심!)
+  #    raw_response(JSONB)가 모달 서비스가 반환한 PredictResponse 원본.
+  #    종합 판단 시 이걸 Bedrock에 그대로 투입.
+  # ──────────────────────────────────────────────────────────
+  - name: modal_results
+    description: "AI 모달 추론 원본 응답 — ECG/CXR/LAB 통합 저장"
+    columns:
+      - name: id
+        type: BIGSERIAL
+        primary_key: true
+        description: "자동 증가 PK"
+      - name: encounter_id
+        type: TEXT
+        nullable: false
+        references: encounters(encounter_id)
+        on_delete: CASCADE
+        description: "소속 방문 ID"
+      - name: subject_id
+        type: VARCHAR(20)
+        nullable: true
+        description: "MIMIC subject_id (트리거 자동 채움)"
+      - name: modality
+        type: VARCHAR(16)
+        nullable: false
+        description: "모달 종류 — 'ECG' | 'CXR' | 'LAB'"
+        note: "CHECK 제약 없음. 애플리케이션 레벨에서 값 검증"
+      - name: service_request_id
+        type: VARCHAR(64)
+        nullable: true
+        description: "FHIR ServiceRequest ID"
+      - name: raw_response
+        type: JSONB
+        nullable: false
+        description: "모달 서비스 원본 응답 (PredictResponse 전체)"
+      - name: risk_level
+        type: VARCHAR(20)
+        nullable: true
+        description: "위험도 요약 — 'routine' | 'urgent' | 'critical'"
+        note: "CHECK 제약 없음. schema.sql 주석 기준 3단계 (watch 미사용)"
+      - name: summary
+        type: TEXT
+        nullable: true
+        description: "소견 요약 텍스트"
+      - name: synced_to_fhir
+        type: BOOLEAN
+        nullable: false
+        default: "FALSE"
+        description: "FHIR 동기화 여부 (현재 미사용, 호환용)"
+      - name: created_at
+        type: TIMESTAMPTZ
+        nullable: false
+        default: NOW()
+    constraints:
+      - type: UNIQUE
+        columns: [encounter_id, modality]
+        description: "1 encounter당 모달 1개 결과만 (재실행 시 UPSERT)"
+    indexes:
+      - name: idx_mr_enc
+        columns: [encounter_id]
+      - name: idx_mr_subject
+        columns: [subject_id]
+      - name: idx_mr_risk
+        columns: [risk_level]
+      - name: idx_mr_created
+        columns: [created_at]
+        order: DESC
+      - name: idx_mr_sr
+        columns: [service_request_id]
+      - name: idx_mr_raw_gin
+        type: GIN
+        columns: [raw_response]
+        description: "JSONB 내부 필드 검색용"
+
+  # ──────────────────────────────────────────────────────────
+  # 3. diagnostic_reports — 종합 판단 결과 (Bedrock 출력 + 의사 수정)
+  # ──────────────────────────────────────────────────────────
+  - name: diagnostic_reports
+    description: "종합 판단 결과 — Bedrock AI 출력 + 의사 수정/서명"
+    columns:
+      - name: id
+        type: BIGSERIAL
+        primary_key: true
+        description: "자동 증가 PK"
+      - name: encounter_id
+        type: TEXT
+        nullable: false
+        references: encounters(encounter_id)
+        on_delete: CASCADE
+        description: "소속 방문 ID"
+      - name: subject_id
+        type: VARCHAR(20)
+        nullable: true
+        description: "MIMIC subject_id (트리거 자동 채움)"
+      - name: fhir_report_id
+        type: VARCHAR(64)
+        nullable: true
+        description: "FHIR DiagnosticReport ID (생성 후 매핑)"
+      - name: ai_diagnosis
+        type: TEXT
+        nullable: true
+        description: "AI 종합 진단 소견"
+      - name: ai_recommendations
+        type: JSONB
+        default: "'[]'::jsonb"
+        description: "AI 권고 조치 목록"
+      - name: ai_risk_level
+        type: VARCHAR(20)
+        nullable: true
+        description: "AI 판정 위험도 — 'routine' | 'urgent' | 'critical'"
+        note: "CHECK 제약 없음. 애플리케이션 레벨에서 값 검증"
+      - name: physician_edits
+        type: TEXT
+        nullable: true
+        description: "의사 수정/추가 소견"
+      - name: status
+        type: VARCHAR(20)
+        nullable: false
+        default: "'preliminary'"
+        description: "리포트 상태 — 'preliminary' | 'signed' | 'amended'"
+        note: "CHECK 제약 없음. 애플리케이션 레벨에서 값 검증"
+      - name: signed_by
+        type: VARCHAR(64)
+        nullable: true
+        description: "서명 의사 ID"
+      - name: signed_at
+        type: TIMESTAMPTZ
+        nullable: true
+        description: "서명 시각"
+      - name: created_at
+        type: TIMESTAMPTZ
+        nullable: false
+        default: NOW()
+      - name: updated_at
+        type: TIMESTAMPTZ
+        nullable: false
+        default: NOW()
+        description: "자동 갱신 (트리거)"
+    constraints:
+      - type: UNIQUE
+        columns: [encounter_id]
+        description: "1 encounter = 1 소견서 (재생성 시 UPSERT)"
+    indexes:
+      - name: idx_dr_enc
+        columns: [encounter_id]
+      - name: idx_dr_subject
+        columns: [subject_id]
+      - name: idx_dr_status
+        columns: [status, created_at]
+        order: DESC
+
+  # ──────────────────────────────────────────────────────────
+  # 4. modal_events — WebSocket 이벤트 로그 (디버그/재전송 대비)
+  # ──────────────────────────────────────────────────────────
+  - name: modal_events
+    description: "WebSocket 이벤트 로그 — 디버그 및 이벤트 재전송 대비"
+    columns:
+      - name: id
+        type: BIGSERIAL
+        primary_key: true
+        description: "자동 증가 PK"
+      - name: encounter_id
+        type: TEXT
+        nullable: true
+        description: "관련 방문 ID (없을 수도 있음)"
+      - name: subject_id
+        type: VARCHAR(20)
+        nullable: true
+        description: "MIMIC subject_id (트리거 자동 채움)"
+      - name: event_type
+        type: VARCHAR(40)
+        nullable: false
+        description: "이벤트 종류 (initial_proposals, modal_completed, ready_for_report 등)"
+      - name: payload
+        type: JSONB
+        nullable: false
+        default: "'{}'::jsonb"
+        description: "이벤트 페이로드 (전체 JSON)"
+      - name: created_at
+        type: TIMESTAMPTZ
+        nullable: false
+        default: NOW()
+    indexes:
+      - name: idx_me_enc_time
+        columns: [encounter_id, created_at]
+        order: DESC
+      - name: idx_me_subject
+        columns: [subject_id]
+      - name: idx_me_type
+        columns: [event_type]
+
+# ──────────────────────────────────────────────────────────
+# 트리거 & 함수
+# ──────────────────────────────────────────────────────────
+triggers:
+
+  - name: _bump_updated_at
+    type: function
+    description: "updated_at 자동 갱신 함수"
+    applies_to:
+      - table: diagnostic_reports
+        trigger_name: trg_dr_updated_at
+        event: BEFORE UPDATE
+        for_each: ROW
+
+  - name: _fill_subject_id
+    type: function
+    description: "encounter_id로 INSERT/UPDATE 시 encounters에서 subject_id 자동 룩업"
+    applies_to:
+      - table: modal_results
+        trigger_name: trg_mr_fill_subject
+        event: BEFORE INSERT OR UPDATE OF encounter_id
+        for_each: ROW
+      - table: diagnostic_reports
+        trigger_name: trg_dr_fill_subject
+        event: BEFORE INSERT OR UPDATE OF encounter_id
+        for_each: ROW
+      - table: modal_events
+        trigger_name: trg_me_fill_subject
+        event: BEFORE INSERT OR UPDATE OF encounter_id
+        for_each: ROW

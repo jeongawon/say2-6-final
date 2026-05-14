@@ -1,0 +1,226 @@
+# ============================================================
+# CloudWatch — 로그 수집, 메트릭, 대시보드 설정
+#
+# 역할: 시스템 전체의 로그를 한 곳에 모으고, 주요 지표를 시각화한다.
+#
+# 구성:
+#   1. log_groups     — 서비스별 로그 저장소 (8개)
+#   2. metric_filters — 로그에서 패턴 감지 → 커스텀 메트릭 생성 (5개)
+#   3. custom_metrics — 중앙백엔드가 직접 전송하는 임상 지표 (5개)
+#   4. dashboards     — 운영 현황 시각화 대시보드 (1개)
+#
+# 연관 파일:
+#   - alarms.yaml     : 이 파일의 메트릭을 기반으로 알람 설정
+#   - logging.yaml    : 각 서비스의 로그 포맷 및 수집 방법
+# ============================================================
+
+# ──────────────────────────────────────────────────────────
+# 1. 로그 그룹 (Log Groups)
+# ──────────────────────────────────────────────────────────
+log_groups:
+
+  # 중앙백엔드 (FastAPI)
+  - name: /drai/central-backend
+    retention_days: 90
+    description: "중앙백엔드 애플리케이션 로그 (FastAPI + Uvicorn)"
+    kms_key: alias/drai-logs-key
+    tags:
+      Service: central-backend
+      Environment: production
+
+  # HAPI FHIR 서버
+  - name: /drai/hapi-fhir
+    retention_days: 90
+    description: "HAPI FHIR 서버 로그 (Java)"
+    kms_key: alias/drai-logs-key
+    tags:
+      Service: hapi-fhir
+
+  # Aurora PostgreSQL
+  - name: /drai/aurora/postgresql
+    retention_days: 180
+    description: "Aurora PostgreSQL 쿼리 로그 (pgaudit 포함)"
+    kms_key: alias/drai-logs-key
+    tags:
+      Service: aurora-db
+
+  # ECG 모달 서비스
+  - name: /drai/modal/ecg
+    retention_days: 30
+    description: "ECG 추론 서비스 로그"
+    tags:
+      Service: ecg-modal
+
+  # CXR 모달 서비스
+  - name: /drai/modal/cxr
+    retention_days: 30
+    description: "CXR 추론 서비스 로그"
+    tags:
+      Service: cxr-modal
+
+  # Lab 모달 서비스
+  - name: /drai/modal/lab
+    retention_days: 30
+    description: "Lab 추론 서비스 로그"
+    tags:
+      Service: lab-modal
+
+  # Bedrock Agent
+  - name: /drai/bedrock-agent
+    retention_days: 90
+    description: "Bedrock Agent 호출/응답 로그"
+    tags:
+      Service: bedrock-agent
+
+  # ALB 액세스 로그
+  - name: /drai/alb/access
+    retention_days: 30
+    description: "Application Load Balancer 액세스 로그"
+    tags:
+      Service: alb
+
+# ──────────────────────────────────────────────────────────
+# 2. 메트릭 필터 (Metric Filters)
+#    로그에서 특정 패턴을 감지하여 커스텀 메트릭 생성
+# ──────────────────────────────────────────────────────────
+metric_filters:
+
+  - name: CriticalRiskDetected
+    log_group: /drai/central-backend
+    pattern: '"risk_level":"critical"'
+    metric:
+      namespace: DRAI/Clinical
+      name: CriticalRiskCount
+      value: 1
+    description: "CRITICAL 위험도 환자 감지 횟수"
+
+  - name: ModalInferenceError
+    log_group: /drai/central-backend
+    pattern: '"status":"error"'
+    metric:
+      namespace: DRAI/Modal
+      name: InferenceErrorCount
+      value: 1
+    description: "모달 추론 실패 횟수"
+
+  - name: HighLatencyInference
+    log_group: /drai/central-backend
+    pattern: '[latency_ms > 5000]'
+    metric:
+      namespace: DRAI/Modal
+      name: HighLatencyCount
+      value: 1
+    description: "추론 5초 초과 횟수"
+
+  - name: WebSocketDisconnect
+    log_group: /drai/central-backend
+    pattern: '"WebSocket disconnected"'
+    metric:
+      namespace: DRAI/WebSocket
+      name: DisconnectCount
+      value: 1
+    description: "WebSocket 비정상 연결 해제"
+
+  - name: FHIRRequestFailed
+    log_group: /drai/hapi-fhir
+    pattern: '[status_code >= 500]'
+    metric:
+      namespace: DRAI/FHIR
+      name: ServerErrorCount
+      value: 1
+    description: "HAPI FHIR 서버 에러 (5xx)"
+
+# ──────────────────────────────────────────────────────────
+# 3. 커스텀 메트릭 (Custom Metrics via SDK)
+#    중앙백엔드에서 직접 PutMetricData로 전송
+# ──────────────────────────────────────────────────────────
+custom_metrics:
+  namespace: DRAI/Clinical
+
+  metrics:
+    - name: EncounterCreated
+      unit: Count
+      description: "신규 방문 생성 수"
+
+    - name: ModalInferenceLatency
+      unit: Milliseconds
+      dimensions: [Modality]    # ECG / CXR / LAB
+      description: "모달별 추론 소요 시간"
+
+    - name: DiagnosticReportSigned
+      unit: Count
+      description: "의사 서명 완료된 소견서 수"
+
+    - name: ActiveEncounters
+      unit: Count
+      description: "현재 진행 중인 방문 수"
+
+    - name: PatientWaitTime
+      unit: Seconds
+      description: "환자 대기 시간 (도착~첫 모달 결과)"
+
+# ──────────────────────────────────────────────────────────
+# 4. 대시보드 (Dashboard)
+# ──────────────────────────────────────────────────────────
+dashboards:
+
+  - name: DRAI-Operations
+    description: "운영 현황 대시보드"
+    widgets:
+      - title: "활성 방문 수"
+        type: metric
+        metric: DRAI/Clinical/ActiveEncounters
+        period: 60
+        stat: Maximum
+
+      - title: "모달별 추론 지연시간"
+        type: metric
+        metrics:
+          - DRAI/Clinical/ModalInferenceLatency{Modality=ECG}
+          - DRAI/Clinical/ModalInferenceLatency{Modality=CXR}
+          - DRAI/Clinical/ModalInferenceLatency{Modality=LAB}
+        period: 300
+        stat: Average
+
+      - title: "CRITICAL 위험도 감지"
+        type: metric
+        metric: DRAI/Clinical/CriticalRiskCount
+        period: 300
+        stat: Sum
+        color: red
+
+      - title: "추론 에러율"
+        type: metric
+        metric: DRAI/Modal/InferenceErrorCount
+        period: 300
+        stat: Sum
+        color: orange
+
+      - title: "Aurora CPU 사용률"
+        type: metric
+        metric: AWS/RDS/CPUUtilization
+        dimensions:
+          DBClusterIdentifier: drai-aurora-cluster
+        period: 60
+        stat: Average
+
+      - title: "Aurora ACU 사용량"
+        type: metric
+        metric: AWS/RDS/ServerlessDatabaseCapacity
+        dimensions:
+          DBClusterIdentifier: drai-aurora-cluster
+        period: 60
+        stat: Average
+
+      - title: "ECS CPU/메모리"
+        type: metric
+        metrics:
+          - AWS/ECS/CPUUtilization{ServiceName=central-backend}
+          - AWS/ECS/MemoryUtilization{ServiceName=central-backend}
+        period: 60
+        stat: Average
+
+      - title: "최근 에러 로그"
+        type: log
+        log_group: /drai/central-backend
+        query: 'fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20'

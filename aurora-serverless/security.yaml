@@ -1,0 +1,128 @@
+# ============================================================
+# Aurora Serverless v2 — 보안 설정
+# 네트워크 격리 + 암호화 + 접근 제어
+#
+# drai_ops + hapi 두 DB를 하나의 클러스터에서 운영
+# ============================================================
+
+network:
+  vpc:
+    id: vpc-drai
+    region: ap-northeast-2    # 서울 리전
+
+  subnets:
+    private_db:
+      - name: subnet-db-az-a
+        az: ap-northeast-2a
+        cidr: "10.0.10.0/24"
+      - name: subnet-db-az-c
+        az: ap-northeast-2c
+        cidr: "10.0.11.0/24"
+
+  security_groups:
+    aurora:
+      name: sg-aurora-drai
+      description: "Aurora Serverless v2 — 내부 접근만 허용"
+      ingress:
+        - source: sg-central-backend
+          port: 5432
+          protocol: tcp
+          description: "중앙백엔드 FastAPI → Aurora (drai_ops DB)"
+        - source: sg-hapi-fhir
+          port: 5432
+          protocol: tcp
+          description: "HAPI FHIR 서버 → Aurora (hapi DB)"
+      egress:
+        - destination: "0.0.0.0/0"
+          port: 443
+          protocol: tcp
+          description: "AWS 서비스 엔드포인트 (Secrets Manager, CloudWatch)"
+
+encryption:
+  at_rest:
+    enabled: true
+    kms_key_alias: alias/drai-aurora-key
+    kms_key_description: "Aurora 디스크 암호화 (AES-256)"
+
+  in_transit:
+    ssl_mode: require
+    ca_certificate: rds-ca-rsa2048-g1
+    description: "클라이언트 ↔ Aurora 간 TLS 강제"
+
+secrets_manager:
+  secret_name: drai/aurora-credentials
+  rotation:
+    enabled: true
+    schedule: "rate(30 days)"
+    lambda_arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:rotate-aurora-secret
+  fields:
+    - username
+    - password
+    - host
+    - port
+    - dbname
+
+iam_authentication:
+  enabled: true
+  description: "IAM 역할 기반 DB 접근 — 비밀번호 없이 토큰 인증"
+  roles:
+    - role_name: drai-backend-role
+      db_name: drai_ops
+      db_user: app_user
+      permissions: [SELECT, INSERT, UPDATE, DELETE]
+    - role_name: drai-hapi-role
+      db_name: hapi
+      db_user: hapi_user
+      permissions: [ALL]
+    - role_name: drai-readonly-role
+      db_name: drai_ops
+      db_user: readonly_user
+      permissions: [SELECT]
+
+access_control:
+  database_users:
+    - username: admin
+      role: superuser
+      description: "DDL 및 관리 작업 전용 — 운영 시 사용 금지"
+
+    - username: app_user
+      database: drai_ops
+      role: readwrite
+      grants:
+        - privileges: [SELECT, INSERT, UPDATE, DELETE]
+          tables: ALL
+      description: "중앙백엔드 애플리케이션 사용자 (drai_ops)"
+
+    - username: hapi_user
+      database: hapi
+      role: owner
+      grants:
+        - privileges: [ALL]
+          tables: ALL
+      description: "HAPI FHIR 서버 전용 사용자 (hapi DB)"
+
+    - username: readonly_user
+      database: drai_ops
+      role: readonly
+      grants:
+        - privileges: [SELECT]
+          tables: ALL
+      description: "모니터링/분석 전용 읽기 사용자"
+
+compliance:
+  hipaa:
+    description: "의료 데이터 보호 — HIPAA 준수 설정"
+    requirements:
+      - "모든 PHI 데이터 암호화 (at-rest + in-transit)"
+      - "접근 로그 최소 6년 보관"
+      - "최소 권한 원칙 적용"
+      - "자동 백업 및 복구 테스트"
+
+  audit:
+    log_retention_days: 2190    # 6년 (의료법 규정)
+    log_all_queries: true
+    pgaudit_enabled: true
+    pgaudit_settings:
+      log_level: write         # DDL + DML 기록
+      log_catalog: false
+      log_parameter: true

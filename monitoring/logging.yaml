@@ -1,0 +1,229 @@
+# ============================================================
+# 로깅 설정 — 애플리케이션 레벨 로그 구조화
+#
+# 역할: 모든 서비스가 동일한 JSON 형식으로 로그를 남기도록 표준을 정의한다.
+#       CloudWatch에서 통합 검색/분석이 가능해진다.
+#
+# 구성:
+#   1. log_format    : JSON 로그 필드 정의 (timestamp, level, trace_id 등)
+#   2. log_levels    : 환경별 로그 레벨 (production: INFO, development: DEBUG)
+#   3. collection    : ECS → CloudWatch 전송 설정 (awslogs 드라이버)
+#   4. retention     : 로그 그룹별 보관 기간 및 S3 아카이빙 정책
+#   5. data_masking  : PHI(개인건강정보) 마스킹 규칙
+#   6. saved_queries : CloudWatch Logs Insights 자주 쓰는 쿼리 모음
+#
+# 연관 파일:
+#   - cloudwatch.yaml : 로그 그룹 생성 설정
+#   - alarms.yaml     : 로그 패턴 기반 메트릭 필터 → 알람
+# ============================================================
+
+# ──────────────────────────────────────────────────────────
+# 1. 로그 포맷 (구조화 JSON 로그)
+# ──────────────────────────────────────────────────────────
+log_format:
+  type: json
+  description: "모든 서비스가 동일한 JSON 구조로 로그 출력 → CloudWatch에서 통합 검색"
+  fields:
+    - name: timestamp
+      type: ISO8601
+      description: "로그 발생 시각"
+    - name: level
+      type: string
+      values: [DEBUG, INFO, WARNING, ERROR, CRITICAL]
+    - name: service
+      type: string
+      description: "서비스 이름 (central-backend, ecg-modal, cxr-modal, lab-modal)"
+    - name: trace_id
+      type: string
+      description: "X-Ray 추적 ID (요청 전체 추적)"
+    - name: encounter_id
+      type: string
+      description: "관련 방문 ID (있을 경우)"
+    - name: subject_id
+      type: string
+      description: "MIMIC subject_id (있을 경우)"
+    - name: message
+      type: string
+      description: "로그 메시지"
+    - name: extra
+      type: object
+      description: "추가 컨텍스트 (latency_ms, modality, risk_level 등)"
+
+  example: |
+    {
+      "timestamp": "2026-05-14T09:15:32.456Z",
+      "level": "INFO",
+      "service": "central-backend",
+      "trace_id": "1-abc123-def456",
+      "encounter_id": "enc-7890",
+      "subject_id": "p10001",
+      "message": "Modal inference completed",
+      "extra": {
+        "modality": "ECG",
+        "latency_ms": 480,
+        "risk_level": "critical"
+      }
+    }
+
+# ──────────────────────────────────────────────────────────
+# 2. 서비스별 로그 레벨
+# ──────────────────────────────────────────────────────────
+log_levels:
+  production:
+    central-backend: INFO
+    hapi-fhir: WARN
+    ecg-modal: INFO
+    cxr-modal: INFO
+    lab-modal: INFO
+    bedrock-agent: INFO
+
+  development:
+    central-backend: DEBUG
+    hapi-fhir: INFO
+    ecg-modal: DEBUG
+    cxr-modal: DEBUG
+    lab-modal: DEBUG
+    bedrock-agent: DEBUG
+
+# ──────────────────────────────────────────────────────────
+# 3. 로그 수집 경로 (ECS → CloudWatch)
+# ──────────────────────────────────────────────────────────
+collection:
+  driver: awslogs
+  description: "ECS Fargate의 awslogs 드라이버로 CloudWatch에 직접 전송"
+
+  ecs_task_log_config:
+    central-backend:
+      log_driver: awslogs
+      options:
+        awslogs-group: /drai/central-backend
+        awslogs-region: ap-northeast-2
+        awslogs-stream-prefix: backend
+
+    hapi-fhir:
+      log_driver: awslogs
+      options:
+        awslogs-group: /drai/hapi-fhir
+        awslogs-region: ap-northeast-2
+        awslogs-stream-prefix: hapi
+
+    ecg-modal:
+      log_driver: awslogs
+      options:
+        awslogs-group: /drai/modal/ecg
+        awslogs-region: ap-northeast-2
+        awslogs-stream-prefix: ecg
+
+    cxr-modal:
+      log_driver: awslogs
+      options:
+        awslogs-group: /drai/modal/cxr
+        awslogs-region: ap-northeast-2
+        awslogs-stream-prefix: cxr
+
+    lab-modal:
+      log_driver: awslogs
+      options:
+        awslogs-group: /drai/modal/lab
+        awslogs-region: ap-northeast-2
+        awslogs-stream-prefix: lab
+
+# ──────────────────────────────────────────────────────────
+# 4. 로그 보관 정책
+# ──────────────────────────────────────────────────────────
+retention:
+  policies:
+    - log_group: /drai/central-backend
+      retention_days: 90
+      archive_to_s3: true
+      archive_after_days: 30
+      s3_bucket: drai-log-archive
+      s3_prefix: central-backend/
+
+    - log_group: /drai/hapi-fhir
+      retention_days: 90
+      archive_to_s3: true
+      archive_after_days: 30
+
+    - log_group: /drai/modal/*
+      retention_days: 30
+      archive_to_s3: false
+      description: "모달 로그는 30일 후 자동 삭제 (원본은 modal_results에 보존)"
+
+    - log_group: /drai/aurora/postgresql
+      retention_days: 180
+      archive_to_s3: true
+      archive_after_days: 90
+      description: "DB 쿼리 로그 — 의료 규정 준수 (6개월 CloudWatch + S3 장기 보관)"
+
+    - log_group: /drai/cloudtrail
+      retention_days: 365
+      archive_to_s3: true
+      archive_after_days: 90
+      description: "감사 로그 — 최소 1년 CloudWatch + S3 6년 보관"
+
+# ──────────────────────────────────────────────────────────
+# 5. 민감 데이터 마스킹
+# ──────────────────────────────────────────────────────────
+data_masking:
+  description: "PHI(개인건강정보) 로그 노출 방지"
+  rules:
+    - field: patient_name
+      action: mask
+      pattern: "***"
+    - field: patient_id
+      action: hash
+      description: "FHIR Patient ID는 해시 처리"
+    - field: raw_response
+      action: allow
+      description: "AI 추론 결과는 마스킹 없이 전체 기록 (디버깅 필수)"
+    - field: password
+      action: redact
+    - field: authorization
+      action: redact
+
+# ──────────────────────────────────────────────────────────
+# 6. CloudWatch Logs Insights 쿼리 (자주 사용)
+# ──────────────────────────────────────────────────────────
+saved_queries:
+
+  - name: "CRITICAL 환자 추적"
+    log_group: /drai/central-backend
+    query: |
+      fields @timestamp, encounter_id, extra.modality, extra.risk_level, message
+      | filter extra.risk_level = "critical"
+      | sort @timestamp desc
+      | limit 50
+
+  - name: "모달별 평균 추론 시간"
+    log_group: /drai/central-backend
+    query: |
+      fields extra.modality, extra.latency_ms
+      | filter message = "Modal inference completed"
+      | stats avg(extra.latency_ms) as avg_ms,
+              max(extra.latency_ms) as max_ms,
+              count(*) as total
+        by extra.modality
+
+  - name: "에러 로그 (최근 1시간)"
+    log_group: /drai/central-backend
+    query: |
+      fields @timestamp, level, message, extra
+      | filter level = "ERROR" or level = "CRITICAL"
+      | sort @timestamp desc
+      | limit 100
+
+  - name: "특정 환자 전체 이벤트 추적"
+    log_group: /drai/central-backend
+    query: |
+      fields @timestamp, message, extra
+      | filter encounter_id = "TARGET_ENCOUNTER_ID"
+      | sort @timestamp asc
+
+  - name: "WebSocket 연결 상태"
+    log_group: /drai/central-backend
+    query: |
+      fields @timestamp, message, encounter_id
+      | filter message like /WebSocket/
+      | sort @timestamp desc
+      | limit 50

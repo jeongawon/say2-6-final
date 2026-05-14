@@ -1,0 +1,120 @@
+# ============================================================
+# CloudTrail — AWS API 호출 감사 추적
+#
+# 역할: AWS 콘솔/CLI/SDK로 실행된 모든 API 호출을 기록한다.
+#       "누가 언제 어떤 AWS 리소스를 변경했는가"를 추적한다.
+#
+# CloudWatch와의 차이:
+#   - CloudWatch : 애플리케이션 로그 + 메트릭 (서비스 내부 동작)
+#   - CloudTrail : AWS 인프라 변경 이력 (콘솔/CLI 조작 기록)
+#
+# 구성:
+#   - trail           : 로그 저장 위치 및 암호화 설정
+#   - event_selectors : 어떤 이벤트를 기록할지 선택
+#   - insight_selectors : 비정상적 API 호출 패턴 자동 감지
+#   - high_risk_events : 즉시 알림이 필요한 위험 API 목록
+#
+# 연관 파일:
+#   - eventbridge.yaml : CloudTrail 이벤트를 EventBridge로 라우팅
+#   - aws-config.yaml  : 인프라 상태 변경 추적 (CloudTrail과 상호 보완)
+# ============================================================
+
+trail:
+  name: drai-audit-trail
+  description: "DRAI 시스템 전체 AWS API 호출 감사 로그"
+  is_multi_region: false
+  region: ap-northeast-2
+
+  # S3에 로그 저장
+  s3_bucket: drai-cloudtrail-logs
+  s3_key_prefix: drai/
+  enable_log_file_validation: true    # 로그 무결성 검증 (변조 방지)
+
+  # CloudWatch Logs로도 전송 (실시간 모니터링용)
+  cloudwatch_logs:
+    enabled: true
+    log_group: /drai/cloudtrail
+    retention_days: 365
+    role_arn: arn:aws:iam::ACCOUNT_ID:role/CloudTrail-CloudWatch-Role
+
+  # KMS 암호화
+  encryption:
+    enabled: true
+    kms_key: alias/drai-cloudtrail-key
+
+  # 이벤트 선택기
+  event_selectors:
+
+    # 관리 이벤트 (AWS 콘솔/CLI 조작)
+    - name: ManagementEvents
+      read_write_type: All    # 읽기 + 쓰기 모두 기록
+      include_management_events: true
+
+    # 데이터 이벤트 (S3 객체 접근)
+    - name: S3DataEvents
+      read_write_type: WriteOnly    # S3 쓰기만 (읽기는 비용 과다)
+      data_resources:
+        - type: AWS::S3::Object
+          values:
+            - arn:aws:s3:::drai-clinical-data/    # 임상 데이터 버킷
+            - arn:aws:s3:::drai-model-artifacts/  # 모델 아티팩트 버킷
+
+    # Lambda 호출 이벤트
+    - name: LambdaDataEvents
+      read_write_type: All
+      data_resources:
+        - type: AWS::Lambda::Function
+          values:
+            - arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-*
+
+  tags:
+    Project: drai-multimodal
+    Compliance: HIPAA
+    Team: team-6
+
+# ──────────────────────────────────────────────────────────
+# CloudTrail 기반 알림 (EventBridge 연동)
+# 특정 위험 API 호출 감지 시 즉시 알림
+# ──────────────────────────────────────────────────────────
+insight_selectors:
+  - insight_type: ApiCallRateInsight      # 비정상적 API 호출 빈도 감지
+  - insight_type: ApiErrorRateInsight     # 비정상적 에러율 감지
+
+# 감시 대상 고위험 API 호출
+high_risk_events:
+  - event_name: DeleteDBCluster
+    description: "Aurora 클러스터 삭제 시도"
+    severity: critical
+
+  - event_name: ModifyDBCluster
+    description: "Aurora 클러스터 설정 변경"
+    severity: warning
+
+  - event_name: DeleteSecret
+    description: "Secrets Manager 시크릿 삭제"
+    severity: critical
+
+  - event_name: PutBucketPolicy
+    description: "S3 버킷 정책 변경 (데이터 유출 위험)"
+    severity: critical
+
+  - event_name: CreateUser
+    description: "IAM 사용자 생성"
+    severity: warning
+
+  - event_name: AttachRolePolicy
+    description: "IAM 역할에 정책 추가"
+    severity: warning
+
+  - event_name: AuthorizeSecurityGroupIngress
+    description: "Security Group 인바운드 규칙 추가"
+    severity: warning
+
+  - event_name: StopDBCluster
+    description: "Aurora 클러스터 중지"
+    severity: warning
+
+  - event_name: ConsoleLogin
+    description: "AWS 콘솔 로그인 (루트 계정 감시)"
+    severity: info
+    condition: "userIdentity.type = 'Root'"

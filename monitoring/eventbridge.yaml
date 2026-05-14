@@ -1,0 +1,190 @@
+# ============================================================
+# EventBridge — 이벤트 기반 자동화 규칙
+#
+# 역할: AWS 서비스에서 발생하는 이벤트를 감지하고 자동으로 대응한다.
+#
+# CloudWatch Alarms와의 차이:
+#   - CloudWatch Alarms : 메트릭 수치가 임계값을 넘을 때 알림
+#   - EventBridge       : AWS 서비스 이벤트(장애, 배포, 보안 변경 등) 발생 시 즉시 반응
+#
+# 규칙 분류:
+#   1. 인프라 이벤트 (5개)  : Aurora 장애, ECS 태스크 종료/배포 실패, Secrets 로테이션 실패
+#   2. 보안 이벤트 (4개)    : 루트 로그인, SG 변경, IAM 정책 변경, S3 정책 변경
+#   3. 스케줄 작업 (2개)    : 매일 헬스체크 리포트, 매주 비용 리포트
+#
+# 연관 파일:
+#   - alarms.yaml      : 메트릭 기반 알림 (이 파일과 상호 보완)
+#   - cloudtrail.yaml  : CloudTrail 이벤트를 EventBridge가 수신
+# ============================================================
+
+event_bus:
+  name: default    # 기본 이벤트 버스 사용
+
+# ──────────────────────────────────────────────────────────
+# 1. 인프라 이벤트 규칙
+# ──────────────────────────────────────────────────────────
+rules:
+
+  # Aurora 장애 감지
+  - name: drai-aurora-failover
+    description: "Aurora 페일오버 발생 시 즉시 알림"
+    event_pattern:
+      source: ["aws.rds"]
+      detail-type: ["RDS DB Cluster Event"]
+      detail:
+        EventCategories: ["failover"]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # Aurora 스토리지 이벤트
+  - name: drai-aurora-storage
+    description: "Aurora 스토리지 관련 이벤트"
+    event_pattern:
+      source: ["aws.rds"]
+      detail-type: ["RDS DB Cluster Event"]
+      detail:
+        EventCategories: ["storage"]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+    severity: warning
+
+  # ECS 태스크 상태 변경 (비정상 종료)
+  - name: drai-ecs-task-stopped
+    description: "ECS 태스크 비정상 종료 감지"
+    event_pattern:
+      source: ["aws.ecs"]
+      detail-type: ["ECS Task State Change"]
+      detail:
+        clusterArn: ["arn:aws:ecs:ap-northeast-2:ACCOUNT_ID:cluster/drai-cluster"]
+        lastStatus: ["STOPPED"]
+        stoppedReason: [{"anything-but": ["Essential container in task exited"]}]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # ECS 배포 실패
+  - name: drai-ecs-deployment-failed
+    description: "ECS 서비스 배포 실패"
+    event_pattern:
+      source: ["aws.ecs"]
+      detail-type: ["ECS Deployment State Change"]
+      detail:
+        eventName: ["SERVICE_DEPLOYMENT_FAILED"]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # Secrets Manager 로테이션 실패
+  - name: drai-secret-rotation-failed
+    description: "시크릿 자동 로테이션 실패"
+    event_pattern:
+      source: ["aws.secretsmanager"]
+      detail-type: ["AWS API Call via CloudTrail"]
+      detail:
+        eventName: ["RotationFailed"]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # ──────────────────────────────────────────────────────────
+  # 2. 보안 이벤트 규칙 (CloudTrail 연동)
+  # ──────────────────────────────────────────────────────────
+
+  # 루트 계정 로그인
+  - name: drai-root-login
+    description: "AWS 루트 계정 콘솔 로그인 감지"
+    event_pattern:
+      source: ["aws.signin"]
+      detail-type: ["AWS Console Sign In via CloudTrail"]
+      detail:
+        userIdentity:
+          type: ["Root"]
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # Security Group 변경
+  - name: drai-sg-change
+    description: "Security Group 인바운드 규칙 변경 감지"
+    event_pattern:
+      source: ["aws.ec2"]
+      detail-type: ["AWS API Call via CloudTrail"]
+      detail:
+        eventName:
+          - AuthorizeSecurityGroupIngress
+          - RevokeSecurityGroupIngress
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+      - type: lambda
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-sg-audit
+        description: "SG 변경 내역 감사 로그 기록"
+    severity: warning
+
+  # IAM 정책 변경
+  - name: drai-iam-policy-change
+    description: "IAM 정책 생성/수정/삭제 감지"
+    event_pattern:
+      source: ["aws.iam"]
+      detail-type: ["AWS API Call via CloudTrail"]
+      detail:
+        eventName:
+          - CreatePolicy
+          - DeletePolicy
+          - CreatePolicyVersion
+          - AttachRolePolicy
+          - DetachRolePolicy
+          - AttachUserPolicy
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-warning-alerts
+    severity: warning
+
+  # S3 버킷 정책 변경 (데이터 유출 위험)
+  - name: drai-s3-policy-change
+    description: "S3 버킷 정책/ACL 변경 감지"
+    event_pattern:
+      source: ["aws.s3"]
+      detail-type: ["AWS API Call via CloudTrail"]
+      detail:
+        eventName:
+          - PutBucketPolicy
+          - PutBucketAcl
+          - DeleteBucketPolicy
+        requestParameters:
+          bucketName:
+            - drai-clinical-data
+            - drai-model-artifacts
+    targets:
+      - type: sns
+        arn: arn:aws:sns:ap-northeast-2:ACCOUNT_ID:drai-critical-alerts
+    severity: critical
+
+  # ──────────────────────────────────────────────────────────
+  # 3. 스케줄 기반 규칙 (정기 작업)
+  # ──────────────────────────────────────────────────────────
+
+  # 매일 오전 9시 헬스체크 리포트
+  - name: drai-daily-health-report
+    description: "매일 09:00 KST 시스템 헬스체크 리포트 생성"
+    schedule: "cron(0 0 * * ? *)"    # UTC 00:00 = KST 09:00
+    targets:
+      - type: lambda
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-health-report
+    severity: info
+
+  # 매주 월요일 비용 리포트
+  - name: drai-weekly-cost-report
+    description: "매주 월요일 09:00 KST 주간 비용 리포트"
+    schedule: "cron(0 0 ? * MON *)"
+    targets:
+      - type: lambda
+        arn: arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-cost-report
+    severity: info

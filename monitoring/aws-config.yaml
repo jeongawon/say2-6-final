@@ -1,0 +1,196 @@
+# ============================================================
+# AWS Config — 인프라 보안 규정 준수 검사
+#
+# 역할: 인프라 리소스가 보안 기준을 지속적으로 충족하는지 자동으로 평가한다.
+#       위반 감지 시 NON_COMPLIANT 상태로 표시하고 알림을 보낸다.
+#
+# CloudTrail과의 차이:
+#   - CloudTrail : "언제 변경했나" (이벤트 로그)
+#   - AWS Config : "지금 상태가 올바른가" (현재 상태 평가)
+#
+# 구성:
+#   - config_recorder  : 어떤 리소스 타입을 추적할지 (15개)
+#   - delivery_channel : 기록을 어디에 저장할지 (S3 + SNS)
+#   - rules            : 준수 여부를 평가하는 규칙 (17개)
+#   - remediations     : 위반 감지 시 자동 교정 액션 (3개)
+#
+# 규칙 분류:
+#   - RDS/Aurora 관련 (4개) : 암호화, 삭제 보호, Multi-AZ, 퍼블릭 접근
+#   - 네트워크/보안 (3개)   : SG 포트, SSH 차단, VPC Flow Logs
+#   - 암호화 (3개)          : S3 암호화, S3 퍼블릭 차단, KMS 로테이션
+#   - IAM (3개)             : 루트 키, 관리자 권한, MFA
+#   - ECS (1개)             : 로그 설정
+#   - Secrets Manager (2개) : 로테이션, 미사용 시크릿
+#
+# 연관 파일:
+#   - cloudtrail.yaml  : 변경 이벤트 추적 (Config와 상호 보완)
+#   - security.yaml    : Aurora 보안 설정 (Config Rules가 검증)
+# ============================================================
+
+config_recorder:
+  name: drai-config-recorder
+  role_arn: arn:aws:iam::ACCOUNT_ID:role/AWSConfigRole
+  recording_group:
+    all_supported: false    # 전체 리소스 대신 필요한 것만 기록 (비용 절감)
+    resource_types:
+      - AWS::RDS::DBCluster
+      - AWS::RDS::DBInstance
+      - AWS::EC2::SecurityGroup
+      - AWS::EC2::VPC
+      - AWS::EC2::Subnet
+      - AWS::ECS::Cluster
+      - AWS::ECS::Service
+      - AWS::ECS::TaskDefinition
+      - AWS::ElasticLoadBalancingV2::LoadBalancer
+      - AWS::S3::Bucket
+      - AWS::IAM::Role
+      - AWS::IAM::Policy
+      - AWS::SecretsManager::Secret
+      - AWS::KMS::Key
+      - AWS::Lambda::Function
+
+delivery_channel:
+  name: drai-config-delivery
+  s3_bucket: drai-config-history
+  s3_key_prefix: config/
+  snapshot_frequency: TwentyFour_Hours    # 일일 스냅샷
+  sns_topic: drai-config-notifications
+
+# ──────────────────────────────────────────────────────────
+# Config Rules — 규정 준수 규칙
+# 위반 시 NON_COMPLIANT 상태 → SNS 알림
+# ──────────────────────────────────────────────────────────
+rules:
+
+  # ── RDS/Aurora 관련 ─────────────────────────────────────
+
+  - name: rds-storage-encrypted
+    source: AWS_MANAGED
+    identifier: RDS_STORAGE_ENCRYPTED
+    description: "Aurora/RDS 스토리지 암호화 활성화 여부"
+    severity: critical
+
+  - name: rds-cluster-deletion-protection
+    source: AWS_MANAGED
+    identifier: RDS_CLUSTER_DELETION_PROTECTION_ENABLED
+    description: "Aurora 클러스터 삭제 보호 활성화 여부"
+    severity: high
+
+  - name: rds-multi-az
+    source: AWS_MANAGED
+    identifier: RDS_MULTI_AZ_SUPPORT
+    description: "Aurora Multi-AZ (Reader 인스턴스) 구성 여부"
+    severity: medium
+
+  - name: rds-instance-public-access
+    source: AWS_MANAGED
+    identifier: RDS_INSTANCE_PUBLIC_ACCESS_CHECK
+    description: "RDS 인스턴스가 퍼블릭 접근 불가인지 확인"
+    severity: critical
+
+  # ── 네트워크/보안 관련 ──────────────────────────────────
+
+  - name: vpc-sg-open-only-to-authorized
+    source: AWS_MANAGED
+    identifier: VPC_SG_OPEN_ONLY_TO_AUTHORIZED_PORTS
+    description: "Security Group이 허가된 포트만 열려있는지"
+    input_parameters:
+      authorizedTcpPorts: "443,5432"
+    severity: critical
+
+  - name: restricted-ssh
+    source: AWS_MANAGED
+    identifier: INCOMING_SSH_DISABLED
+    description: "SSH(22) 포트가 0.0.0.0/0에 열려있지 않은지"
+    severity: critical
+
+  - name: vpc-flow-logs-enabled
+    source: AWS_MANAGED
+    identifier: VPC_FLOW_LOGS_ENABLED
+    description: "VPC Flow Logs 활성화 여부"
+    severity: high
+
+  # ── 암호화 관련 ─────────────────────────────────────────
+
+  - name: s3-bucket-server-side-encryption
+    source: AWS_MANAGED
+    identifier: S3_BUCKET_SERVER_SIDE_ENCRYPTION_ENABLED
+    description: "S3 버킷 서버 사이드 암호화 활성화"
+    severity: high
+
+  - name: s3-bucket-public-read-prohibited
+    source: AWS_MANAGED
+    identifier: S3_BUCKET_PUBLIC_READ_PROHIBITED
+    description: "S3 버킷 퍼블릭 읽기 차단"
+    severity: critical
+
+  - name: kms-key-rotation
+    source: AWS_MANAGED
+    identifier: CMK_BACKING_KEY_ROTATION_ENABLED
+    description: "KMS 키 자동 로테이션 활성화"
+    severity: medium
+
+  # ── IAM 관련 ────────────────────────────────────────────
+
+  - name: iam-root-access-key-check
+    source: AWS_MANAGED
+    identifier: IAM_ROOT_ACCESS_KEY_CHECK
+    description: "루트 계정 액세스 키 미사용 확인"
+    severity: critical
+
+  - name: iam-policy-no-admin
+    source: AWS_MANAGED
+    identifier: IAM_POLICY_NO_STATEMENTS_WITH_ADMIN_ACCESS
+    description: "IAM 정책에 *:* 관리자 권한 없는지"
+    severity: high
+
+  - name: iam-user-mfa-enabled
+    source: AWS_MANAGED
+    identifier: IAM_USER_MFA_ENABLED
+    description: "IAM 사용자 MFA 활성화"
+    severity: high
+
+  # ── ECS 관련 ────────────────────────────────────────────
+
+  - name: ecs-task-definition-log-configuration
+    source: AWS_MANAGED
+    identifier: ECS_TASK_DEFINITION_LOG_CONFIGURATION
+    description: "ECS Task에 로그 설정이 있는지"
+    severity: medium
+
+  # ── Secrets Manager 관련 ────────────────────────────────
+
+  - name: secretsmanager-rotation-enabled
+    source: AWS_MANAGED
+    identifier: SECRETSMANAGER_ROTATION_ENABLED_CHECK
+    description: "Secrets Manager 자동 로테이션 활성화"
+    severity: high
+
+  - name: secretsmanager-secret-unused
+    source: AWS_MANAGED
+    identifier: SECRETSMANAGER_SECRET_UNUSED
+    description: "90일 이상 미사용 시크릿 감지"
+    input_parameters:
+      unusedForDays: 90
+    severity: low
+
+# ──────────────────────────────────────────────────────────
+# 자동 교정 (Remediation)
+# NON_COMPLIANT 감지 시 자동으로 수정하는 액션
+# ──────────────────────────────────────────────────────────
+remediations:
+
+  - rule: rds-instance-public-access
+    action: AWS-DisablePublicAccessForRDSInstance
+    automatic: true
+    description: "RDS 퍼블릭 접근 자동 비활성화"
+
+  - rule: s3-bucket-public-read-prohibited
+    action: AWS-DisableS3BucketPublicReadWrite
+    automatic: true
+    description: "S3 퍼블릭 접근 자동 차단"
+
+  - rule: restricted-ssh
+    action: AWS-DisableIncomingSSHForSecurityGroup
+    automatic: false    # 수동 확인 후 조치 (오탐 방지)
+    description: "SSH 오픈 감지 시 알림 (수동 조치)"

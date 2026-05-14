@@ -17,6 +17,30 @@
 #   - alarms.yaml     : 로그 패턴 기반 메트릭 필터 → 알람
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+
+
 # ──────────────────────────────────────────────────────────
 # 1. 로그 포맷 (구조화 JSON 로그)
 # ──────────────────────────────────────────────────────────

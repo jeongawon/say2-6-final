@@ -19,6 +19,30 @@
 #   - aws-config.yaml  : 인프라 상태 변경 추적 (CloudTrail과 상호 보완)
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+
+
 trail:
   name: drai-audit-trail
   description: "DRAI 시스템 전체 AWS API 호출 감사 로그"
@@ -68,9 +92,12 @@ trail:
             - arn:aws:lambda:ap-northeast-2:ACCOUNT_ID:function:drai-*
 
   tags:
-    Project: drai-multimodal
-    Compliance: HIPAA
-    Team: team-6
+    - Key: Project
+      Value: "!Ref ProjectName"
+    - Key: Environment
+      Value: "!Ref Environment"
+    - Key: Owner
+      Value: "!Ref Owner"
 
 # ──────────────────────────────────────────────────────────
 # CloudTrail 기반 알림 (EventBridge 연동)

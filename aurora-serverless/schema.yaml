@@ -9,6 +9,30 @@
 #   - 모달 원본 응답을 JSONB로 보존 → Bedrock 종합 판단 시 구조 손실 없이 투입
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+# ============================================================
+
 database:
   name: drai_ops
   description: "운영 DB — HAPI FHIR(hapi database)과 같은 RDS 인스턴스, 별도 DB"

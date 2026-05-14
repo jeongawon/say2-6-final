@@ -18,6 +18,30 @@
 #   - eventbridge.yaml : AWS 이벤트 기반 알림 (이 파일과 상호 보완)
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+
+
 sns_topics:
 
   - name: drai-critical-alerts

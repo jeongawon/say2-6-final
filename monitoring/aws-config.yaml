@@ -27,6 +27,30 @@
 #   - security.yaml    : Aurora 보안 설정 (Config Rules가 검증)
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+
+
 config_recorder:
   name: drai-config-recorder
   role_arn: arn:aws:iam::ACCOUNT_ID:role/AWSConfigRole

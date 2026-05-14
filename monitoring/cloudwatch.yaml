@@ -14,6 +14,30 @@
 #   - logging.yaml    : 각 서비스의 로그 포맷 및 수집 방법
 # ============================================================
 
+# ── 공통 Parameters ────────────────────────────────────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"
+  - Key: Environment
+    Value: "!Ref Environment"
+  - Key: Owner
+    Value: "!Ref Owner"
+
+
+
 # ──────────────────────────────────────────────────────────
 # 1. 로그 그룹 (Log Groups)
 # ──────────────────────────────────────────────────────────
@@ -25,8 +49,14 @@ log_groups:
     description: "중앙백엔드 애플리케이션 로그 (FastAPI + Uvicorn)"
     kms_key: alias/drai-logs-key
     tags:
-      Service: central-backend
-      Environment: production
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: central-backend
 
   # HAPI FHIR 서버
   - name: /drai/hapi-fhir
@@ -34,7 +64,14 @@ log_groups:
     description: "HAPI FHIR 서버 로그 (Java)"
     kms_key: alias/drai-logs-key
     tags:
-      Service: hapi-fhir
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: hapi-fhir
 
   # Aurora PostgreSQL
   - name: /drai/aurora/postgresql
@@ -42,42 +79,84 @@ log_groups:
     description: "Aurora PostgreSQL 쿼리 로그 (pgaudit 포함)"
     kms_key: alias/drai-logs-key
     tags:
-      Service: aurora-db
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: aurora-db
 
   # ECG 모달 서비스
   - name: /drai/modal/ecg
     retention_days: 30
     description: "ECG 추론 서비스 로그"
     tags:
-      Service: ecg-modal
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: ecg-modal
 
   # CXR 모달 서비스
   - name: /drai/modal/cxr
     retention_days: 30
     description: "CXR 추론 서비스 로그"
     tags:
-      Service: cxr-modal
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: cxr-modal
 
   # Lab 모달 서비스
   - name: /drai/modal/lab
     retention_days: 30
     description: "Lab 추론 서비스 로그"
     tags:
-      Service: lab-modal
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: lab-modal
 
   # Bedrock Agent
   - name: /drai/bedrock-agent
     retention_days: 90
     description: "Bedrock Agent 호출/응답 로그"
     tags:
-      Service: bedrock-agent
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: bedrock-agent
 
   # ALB 액세스 로그
   - name: /drai/alb/access
     retention_days: 30
     description: "Application Load Balancer 액세스 로그"
     tags:
-      Service: alb
+      - Key: Project
+        Value: "!Ref ProjectName"
+      - Key: Environment
+        Value: "!Ref Environment"
+      - Key: Owner
+        Value: "!Ref Owner"
+      - Key: Service
+        Value: alb
 
 # ──────────────────────────────────────────────────────────
 # 2. 메트릭 필터 (Metric Filters)

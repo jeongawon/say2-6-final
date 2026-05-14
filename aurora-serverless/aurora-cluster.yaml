@@ -7,6 +7,31 @@
 #   - hapi: HAPI FHIR 서버 전용 DB (환자 정보, 바이탈, 검사 결과)
 # ============================================================
 
+# ── 공통 Parameters (CloudFormation 변환 시 사용) ──────────
+parameters:
+  ProjectName:
+    type: String
+    default: say2-6team
+  Environment:
+    type: String
+    default: dev
+    allowed_values: [dev, staging, prod]
+  Owner:
+    type: String
+    default: yji
+    allowed_values: [unassigned, wja, lji, hkt, yji]
+
+# ── 공통 Tags (모든 리소스에 적용) ─────────────────────────
+common_tags:
+  - Key: Project
+    Value: "!Ref ProjectName"    # say2-6team
+  - Key: Environment
+    Value: "!Ref Environment"    # dev / staging / prod
+  - Key: Owner
+    Value: "!Ref Owner"          # yji
+
+# ============================================================
+
 cluster:
   name: drai-aurora-cluster
   engine: aurora-postgresql
@@ -54,9 +79,12 @@ cluster:
       - postgresql
 
   tags:
-    Project: drai-multimodal
-    Environment: production
-    Team: team-6
+    - Key: Project
+      Value: "!Ref ProjectName"
+    - Key: Environment
+      Value: "!Ref Environment"
+    - Key: Owner
+      Value: "!Ref Owner"
 
 instances:
   - identifier: drai-writer

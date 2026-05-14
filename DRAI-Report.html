@@ -1,0 +1,1379 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DRAI — DB & 모니터링 설계 보고서</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: auto; }
+body {
+  background: #eef2f7;
+  color: #1e293b;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', 'Segoe UI', system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* HEADER */
+.hero {
+  background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 60%, #06b6d4 100%);
+  color: #fff;
+  padding: 48px 32px 36px;
+  text-align: center;
+}
+.hero h1 {
+  font-size: 2.6rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  margin-bottom: 10px;
+}
+.hero p { font-size: 1.1rem; opacity: 0.92; }
+.hero .meta {
+  display: flex; justify-content: center; gap: 10px; margin-top: 22px; flex-wrap: wrap;
+}
+.hero .meta span {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 24px;
+  padding: 6px 18px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+/* TAB NAV */
+.tabs {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 3px solid #2563eb;
+  display: flex;
+  overflow-x: auto;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+.tab {
+  flex: 1;
+  min-width: 130px;
+  padding: 18px 16px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  color: #64748b;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  border-bottom: 4px solid transparent;
+  margin-bottom: -3px;
+  transition: all 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.tab:hover { background: #eff6ff; color: #2563eb; }
+.tab.active {
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  background: #eff6ff;
+}
+.tab .tab-icon { font-size: 20px; display: block; margin-bottom: 4px; }
+
+/* PAGE WRAPPER */
+.page {
+  display: none;
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 36px 32px 80px;
+}
+.page.active { display: block; }
+.page-title {
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+.page-subtitle {
+  font-size: 16px;
+  color: #64748b;
+  margin-bottom: 32px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+/* CARD */
+.card {
+  background: #fff;
+  border-radius: 12px;
+  margin-bottom: 24px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  border: 1px solid #e2e8f0;
+}
+.card-header {
+  padding: 18px 24px;
+  border-bottom: 2px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #f8fafc;
+}
+.card-header.blue { background: #eff6ff; border-bottom-color: #93c5fd; }
+.card-header.green { background: #ecfdf5; border-bottom-color: #6ee7b7; }
+.card-header.red { background: #fef2f2; border-bottom-color: #fca5a5; }
+.card-header.orange { background: #fff7ed; border-bottom-color: #fdba74; }
+.card-header.purple { background: #f5f3ff; border-bottom-color: #c4b5fd; }
+.card-header.cyan { background: #ecfeff; border-bottom-color: #67e8f9; }
+.card-header.yellow { background: #fefce8; border-bottom-color: #fde047; }
+.card-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+}
+.card-desc {
+  font-size: 14px;
+  color: #64748b;
+  margin-left: auto;
+}
+.card-body { padding: 24px; }
+
+/* SECTION TITLE */
+.sec-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 24px 0 14px;
+  padding-left: 12px;
+  border-left: 4px solid #2563eb;
+}
+.sec-title:first-child { margin-top: 0; }
+
+/* GRID */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 14px; }
+@media(max-width:900px) {
+  .grid-2,.grid-3,.grid-4 { grid-template-columns: 1fr; }
+}
+
+/* OPTION BOX */
+.opt {
+  background: #f8fafc;
+  border: 1.5px solid #e2e8f0;
+  border-left: 4px solid #2563eb;
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.opt.green { border-left-color: #10b981; }
+.opt.red { border-left-color: #ef4444; }
+.opt.orange { border-left-color: #f97316; }
+.opt.purple { border-left-color: #8b5cf6; }
+.opt.yellow { border-left-color: #eab308; }
+.opt-label {
+  font-size: 13px;
+  color: #64748b;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.opt-value {
+  font-size: 17px;
+  color: #1e293b;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+.opt-note {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 6px;
+  line-height: 1.5;
+}
+
+/* TABLE */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  background: #fff;
+}
+.tbl th {
+  background: #1e293b;
+  color: #fff;
+  font-weight: 700;
+  text-align: left;
+  padding: 12px 16px;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+}
+.tbl td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+  color: #334155;
+}
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: #f8fafc; }
+
+/* BADGES */
+.b-pk { background: #fef9c3; color: #854d0e; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 700; }
+.b-fk { background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.b-nn { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.b-jsonb { background: #ede9fe; color: #5b21b6; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.b-uniq { background: #d1fae5; color: #065f46; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.b-gin { background: #ffedd5; color: #9a3412; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+.b-crit { background: #ef4444; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+.b-warn { background: #f97316; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+.b-info { background: #3b82f6; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+.b-good { background: #10b981; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+.b-low { background: #94a3b8; color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 13px; font-weight: 700; }
+
+/* CODE */
+.code {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 8px;
+  padding: 18px 20px;
+  font-family: 'Fira Code', 'Courier New', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+  overflow-x: auto;
+  margin: 12px 0;
+}
+.code .k { color: #7dd3fc; }
+.code .s { color: #86efac; }
+.code .n { color: #fbbf24; }
+.code .b { color: #c084fc; }
+.code .c { color: #94a3b8; font-style: italic; }
+
+/* MONO */
+.mono { font-family: 'Courier New', monospace; color: #2563eb; font-weight: 600; font-size: 14px; }
+
+/* NOTE BOX */
+.note {
+  border-left: 4px solid #3b82f6;
+  background: #eff6ff;
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  color: #1e40af;
+  margin: 14px 0;
+}
+.warn {
+  border-left: 4px solid #f97316;
+  background: #fff7ed;
+  padding: 14px 18px;
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  color: #9a3412;
+  margin: 14px 0;
+}
+
+/* ─── ER DIAGRAM ─── */
+.er-container {
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border: 2px solid #93c5fd;
+  border-radius: 12px;
+  padding: 32px 24px;
+  margin: 16px 0 28px;
+  position: relative;
+}
+.er-grid {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  gap: 16px;
+  align-items: center;
+}
+.er-table {
+  background: #fff;
+  border: 2px solid #2563eb;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(37,99,235,0.15);
+}
+.er-table.green { border-color: #10b981; box-shadow: 0 4px 12px rgba(16,185,129,0.15); }
+.er-table.purple { border-color: #8b5cf6; box-shadow: 0 4px 12px rgba(139,92,246,0.15); }
+.er-table.orange { border-color: #f97316; box-shadow: 0 4px 12px rgba(249,115,22,0.15); }
+.er-table-header {
+  background: #2563eb;
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 700;
+  font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.er-table.green .er-table-header { background: #10b981; }
+.er-table.purple .er-table-header { background: #8b5cf6; }
+.er-table.orange .er-table-header { background: #f97316; }
+.er-table-header .er-icon { font-size: 18px; }
+.er-row {
+  padding: 7px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.er-row:last-child { border-bottom: none; }
+.er-row.star { background: #fef9c3; }
+.er-col-name {
+  color: #1e293b;
+  font-weight: 600;
+  flex: 1;
+}
+.er-col-type {
+  color: #64748b;
+  font-family: monospace;
+  font-size: 12px;
+}
+.er-arrow {
+  text-align: center;
+  font-size: 28px;
+  color: #2563eb;
+  font-weight: 800;
+}
+.er-side-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── ARCH FLOW ─── */
+.arch {
+  background: #1e293b;
+  color: #e2e8f0;
+  border-radius: 12px;
+  padding: 28px 24px;
+  font-family: 'Courier New', monospace;
+  font-size: 15px;
+  line-height: 2;
+  overflow-x: auto;
+}
+.arch .arrow { color: #06b6d4; font-weight: 700; }
+.arch .box { color: #86efac; font-weight: 700; }
+.arch .core { color: #fde047; font-weight: 800; }
+.arch .note { color: #94a3b8; font-style: italic; }
+
+/* ALARM ROW */
+.alarm-list {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.alarm-row {
+  display: grid;
+  grid-template-columns: 280px 1fr 130px 100px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+  border-bottom: 1px solid #e2e8f0;
+}
+.alarm-row:last-child { border-bottom: none; }
+.alarm-row:hover { background: #f8fafc; }
+.alarm-name { font-family: monospace; font-size: 14px; color: #2563eb; font-weight: 700; }
+.alarm-cond { font-size: 14px; color: #475569; }
+.alarm-thresh { font-family: monospace; font-size: 14px; color: #c2410c; font-weight: 700; }
+
+/* RULE GROUP */
+.rule-group { margin-bottom: 18px; border-radius: 8px; overflow: hidden; border: 1.5px solid #e2e8f0; }
+.rule-title {
+  padding: 12px 18px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: #2563eb;
+}
+.rule-title.green { background: #10b981; }
+.rule-title.red { background: #ef4444; }
+.rule-title.purple { background: #8b5cf6; }
+.rule-title.orange { background: #f97316; }
+.rule-title.gray { background: #475569; }
+.rule-item {
+  display: grid;
+  grid-template-columns: 320px 1fr 100px;
+  gap: 14px;
+  align-items: center;
+  padding: 12px 18px;
+  border-top: 1px solid #e2e8f0;
+  background: #fff;
+}
+.rule-item:hover { background: #f8fafc; }
+.rule-name { font-family: monospace; font-size: 13px; color: #2563eb; font-weight: 700; }
+.rule-desc { font-size: 14px; color: #475569; }
+
+/* COST */
+.cost-row td.amount { color: #059669; font-weight: 700; font-size: 16px; }
+.cost-total td {
+  background: #ecfdf5;
+  border-top: 3px solid #10b981;
+  font-weight: 700;
+  font-size: 16px;
+}
+
+/* H3 H4 */
+h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 24px 0 12px;
+}
+h4 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2563eb;
+  margin: 18px 0 10px;
+}
+
+/* TRIGGER CARD */
+.trigger-card {
+  background: #fefce8;
+  border: 2px solid #fde047;
+  border-radius: 10px;
+  padding: 18px;
+}
+.trigger-card .t-name {
+  font-family: monospace;
+  font-size: 15px;
+  color: #854d0e;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.trigger-card .t-desc {
+  font-size: 14px;
+  color: #475569;
+  margin-bottom: 10px;
+}
+</style>
+</head>
+<body>
+
+<!-- HERO -->
+<div class="hero">
+  <h1>DRAI — DB & 모니터링 설계 보고서</h1>
+  <p>응급 의료 멀티모달 AI 에이전트 · Aurora Serverless v2 + AWS Monitoring</p>
+  <div class="meta">
+    <span>📅 2026-05-14</span>
+    <span>🌿 feature_db</span>
+    <span>🏥 응급 의료 AI</span>
+    <span>☁️ ap-northeast-2 서울</span>
+    <span>🐘 PostgreSQL 16.4</span>
+  </div>
+</div>
+
+<!-- TABS -->
+<div class="tabs">
+  <button class="tab active" data-page="overview"><span class="tab-icon">🗺️</span>전체 개요</button>
+  <button class="tab" data-page="db-cluster"><span class="tab-icon">🗄️</span>Aurora 클러스터</button>
+  <button class="tab" data-page="db-schema"><span class="tab-icon">📐</span>DB 스키마</button>
+  <button class="tab" data-page="db-security"><span class="tab-icon">🔒</span>DB 보안</button>
+  <button class="tab" data-page="mon-cloudwatch"><span class="tab-icon">📊</span>CloudWatch</button>
+  <button class="tab" data-page="mon-alarms"><span class="tab-icon">🚨</span>Alarms</button>
+  <button class="tab" data-page="mon-trail-config"><span class="tab-icon">🕵️</span>CloudTrail · Config</button>
+  <button class="tab" data-page="mon-event-log"><span class="tab-icon">⚡</span>EventBridge · Logging</button>
+  <button class="tab" data-page="cost"><span class="tab-icon">��</span>비용 · 배포</button>
+</div>
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 1: OVERVIEW                                      -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page active" id="overview">
+  <h1 class="page-title">🗺️ 전체 개요</h1>
+  <p class="page-subtitle">DRAI 프로젝트의 전체 구조와 데이터 흐름을 한눈에 본다</p>
+
+  <div class="card">
+    <div class="card-header blue">
+      <span class="card-title">시스템 데이터 흐름</span>
+      <span class="card-desc">환자 도착부터 의사 서명까지</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <table class="tbl" style="font-size:15px">
+        <thead><tr><th style="width:60px">단계</th><th style="width:260px">구성 요소</th><th>설명</th></tr></thead>
+        <tbody>
+          <tr><td style="text-align:center"><span class="b-info">1</span></td><td style="font-weight:700;color:#2563eb">간호사 트리아지 입력</td><td>환자 정보 + 바이탈 + 주증상 입력</td></tr>
+          <tr><td style="text-align:center"><span class="b-info">2</span></td><td style="font-weight:700;color:#2563eb">중앙백엔드 (FastAPI)</td><td>ECS Fargate에서 실행 · 모든 요청의 중심 허브</td></tr>
+          <tr><td style="text-align:center"><span class="b-good">3</span></td><td style="font-weight:700;color:#059669">HAPI FHIR 서버</td><td>환자/바이탈/검사 오더를 FHIR R4 표준으로 저장 → <strong>hapi DB</strong></td></tr>
+          <tr><td style="text-align:center"><span class="b-warn">4</span></td><td style="font-weight:700;color:#c2410c">AI 모달 호출 (ECG · CXR · Lab)</td><td>증상에 따라 필요한 모달만 선택적 호출 · SageMaker/Lab 서비스</td></tr>
+          <tr style="background:#eff6ff"><td style="text-align:center"><span class="b-crit">5</span></td><td style="font-weight:800;color:#1e40af;font-size:16px">★ Aurora drai_ops DB</td><td style="font-weight:600">모달 결과 원본을 <strong>raw_response (JSONB)</strong>로 보존 · 구조 손실 없이 저장</td></tr>
+          <tr><td style="text-align:center"><span class="b-info">6</span></td><td style="font-weight:700;color:#2563eb">Bedrock Claude 종합 판단</td><td>모든 모달 결과를 통합해 AI 종합 소견서 생성</td></tr>
+          <tr><td style="text-align:center"><span class="b-good">7</span></td><td style="font-weight:700;color:#059669">의사 검토 → 수정 → 서명</td><td>AI 소견 확인 후 수정/추가 → 최종 서명으로 확정</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header green">
+        <span class="card-title">📦 폴더 구성</span>
+      </div>
+      <div class="card-body">
+        <h4 style="color:#2563eb">aurora-serverless/</h4>
+        <ul style="list-style:none;padding-left:0;font-size:14px;line-height:2">
+          <li>📄 <span class="mono">aurora-cluster.yaml</span> — 클러스터 인프라</li>
+          <li>📄 <span class="mono">schema.yaml</span> — 테이블 구조 문서</li>
+          <li>📄 <span class="mono">security.yaml</span> — 보안 설정</li>
+          <li>📄 <span class="mono">migrations.yaml</span> — 실행 SQL (001~006)</li>
+        </ul>
+        <h4 style="color:#10b981;margin-top:18px">monitoring/</h4>
+        <ul style="list-style:none;padding-left:0;font-size:14px;line-height:2">
+          <li>📄 <span class="mono">cloudwatch.yaml</span> — 로그 + 메트릭 + 대시보드</li>
+          <li>📄 <span class="mono">alarms.yaml</span> — 13개 알람</li>
+          <li>📄 <span class="mono">cloudtrail.yaml</span> — API 감사 추적</li>
+          <li>📄 <span class="mono">aws-config.yaml</span> — 17개 규정 준수 규칙</li>
+          <li>📄 <span class="mono">eventbridge.yaml</span> — 12개 이벤트 자동화</li>
+          <li>📄 <span class="mono">logging.yaml</span> — 로그 포맷 표준</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header purple">
+        <span class="card-title">🎯 왜 DB가 2개인가</span>
+      </div>
+      <div class="card-body">
+        <p style="font-size:15px;color:#475569;margin-bottom:14px">같은 Aurora 클러스터 안에 DB 2개를 운영한다.</p>
+        <div class="opt" style="margin-bottom:12px">
+          <div class="opt-label">drai_ops (운영 DB)</div>
+          <div class="opt-value" style="color:#2563eb">우리가 직접 관리</div>
+          <div class="opt-note">AI 추론 결과, 소견서, 이벤트 로그 — JSONB로 원본 보존</div>
+        </div>
+        <div class="opt green">
+          <div class="opt-label">hapi (FHIR DB)</div>
+          <div class="opt-value" style="color:#10b981">HAPI FHIR 자동 관리</div>
+          <div class="opt-note">환자, 바이탈, 검사 오더 — FHIR R4 표준 준수</div>
+        </div>
+        <div class="note" style="margin-top:16px">
+          AI 결과(raw_response)를 FHIR로 변환하면 구조가 손실된다. Bedrock 종합 판단 정확도를 위해 별도 보존한다.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="warn">
+    ⚠️ 이 YAML 파일들은 <strong>설계 문서</strong>다. AWS에 자동 배포하려면 CloudFormation 또는 CDK 형식으로 변환이 필요하다.
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 2: AURORA CLUSTER                                -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="db-cluster">
+  <h1 class="page-title">🗄️ aurora-cluster.yaml</h1>
+  <p class="page-subtitle">Aurora Serverless v2 클러스터 인프라 설정 — 엔진, 스케일링, 네트워크, 백업</p>
+
+  <h2 class="sec-title">📌 클러스터 기본 설정</h2>
+  <div class="grid-3">
+    <div class="opt"><div class="opt-label">클러스터 이름</div><div class="opt-value">drai-aurora-cluster</div></div>
+    <div class="opt"><div class="opt-label">엔진</div><div class="opt-value">aurora-postgresql</div><div class="opt-note">PostgreSQL 완전 호환</div></div>
+    <div class="opt"><div class="opt-label">엔진 버전</div><div class="opt-value">16.4</div><div class="opt-note">최신 PostgreSQL 16 계열</div></div>
+    <div class="opt"><div class="opt-label">리전</div><div class="opt-value">ap-northeast-2</div><div class="opt-note">서울 리전</div></div>
+    <div class="opt"><div class="opt-label">비밀번호 관리</div><div class="opt-value">Secrets Manager</div><div class="opt-note">코드 하드코딩 금지</div></div>
+    <div class="opt"><div class="opt-label">운영 DB 수</div><div class="opt-value">2개</div><div class="opt-note">drai_ops + hapi</div></div>
+  </div>
+
+  <h2 class="sec-title">⚡ Serverless v2 스케일링</h2>
+  <div class="grid-2">
+    <div class="opt green">
+      <div class="opt-label">min_acu (최소 용량)</div>
+      <div class="opt-value" style="color:#059669">0.5 ACU</div>
+      <div class="opt-note">유휴 시 최소 비용 · ~1GB RAM · 비용 거의 0</div>
+    </div>
+    <div class="opt orange">
+      <div class="opt-label">max_acu (최대 용량)</div>
+      <div class="opt-value" style="color:#c2410c">4.0 ACU</div>
+      <div class="opt-note">응급 피크 자동 확장 · ~8GB RAM · 동시 ~500명</div>
+    </div>
+  </div>
+  <div class="note">
+    <strong>ACU(Aurora Capacity Unit)</strong>: 1 ACU ≈ 2GB RAM + 상응하는 CPU. 트래픽에 따라 초 단위로 자동 조정된다.
+  </div>
+
+  <h2 class="sec-title">🌐 네트워크 설정</h2>
+  <div class="grid-2">
+    <div class="opt"><div class="opt-label">서브넷 배치</div><div class="opt-value">Private Subnet × 2</div><div class="opt-note">AZ-a (10.0.10.0/24) + AZ-c (10.0.11.0/24)<br>인터넷 직접 접근 불가</div></div>
+    <div class="opt red"><div class="opt-label">허용 인바운드 (포트 5432)</div><div class="opt-value" style="color:#b91c1c">sg-central-backend<br>sg-hapi-fhir</div><div class="opt-note">이 두 SG에서만 접근 가능</div></div>
+  </div>
+
+  <h2 class="sec-title">🔐 암호화 · 백업 · 모니터링</h2>
+  <div class="grid-3">
+    <div class="opt purple"><div class="opt-label">저장 암호화</div><div class="opt-value" style="color:#7c3aed">KMS AES-256</div><div class="opt-note">alias/drai-aurora-key</div></div>
+    <div class="opt"><div class="opt-label">백업 보관</div><div class="opt-value">7일</div><div class="opt-note">매일 03:00 UTC (KST 12:00)</div></div>
+    <div class="opt green"><div class="opt-label">Enhanced Monitoring</div><div class="opt-value" style="color:#059669">60초 간격</div><div class="opt-note">CloudWatch Logs: postgresql</div></div>
+  </div>
+
+  <h2 class="sec-title">🖥️ 인스턴스 구성</h2>
+  <table class="tbl">
+    <thead><tr><th>식별자</th><th>클래스</th><th>역할</th><th>promotion_tier</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">drai-writer</td><td class="mono">db.serverless</td><td>Primary — 읽기/쓰기 모두 처리</td><td><span class="b-info">0 (우선)</span></td></tr>
+      <tr><td class="mono">drai-reader</td><td class="mono">db.serverless</td><td>Read Replica — 읽기 분산 + 고가용성</td><td><span class="b-good">1 (자동 승격)</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 3: DB SCHEMA                                     -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="db-schema">
+  <h1 class="page-title">📐 schema.yaml — DB 스키마</h1>
+  <p class="page-subtitle">drai_ops DB의 4개 테이블 구조와 JSONB 컬럼 예시</p>
+
+  <h2 class="sec-title">🗂️ ER 다이어그램 — 한눈에 보기</h2>
+  <div class="er-container">
+    <div class="er-grid">
+      <!-- 왼쪽: encounters (중심 테이블) -->
+      <div class="er-table">
+        <div class="er-table-header">
+          <span><span class="er-icon">📋</span> encounters</span>
+          <span style="font-size:11px;background:rgba(255,255,255,0.25);padding:2px 8px;border-radius:4px">중심 테이블</span>
+        </div>
+        <div class="er-row"><span class="b-pk">PK</span><span class="er-col-name">encounter_id</span><span class="er-col-type">TEXT</span></div>
+        <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">patient_id</span><span class="er-col-type">TEXT</span></div>
+        <div class="er-row"><span class="er-col-name" style="margin-left:32px">subject_id</span><span class="er-col-type">VARCHAR(20)</span></div>
+        <div class="er-row"><span class="er-col-name" style="margin-left:32px">chief_complaint</span><span class="er-col-type">TEXT</span></div>
+        <div class="er-row"><span class="er-col-name" style="margin-left:32px">patient_name/age/gender</span></div>
+        <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">started_at</span><span class="er-col-type">TIMESTAMPTZ</span></div>
+        <div class="er-row"><span class="er-col-name" style="margin-left:32px">closed_at</span><span class="er-col-type">TIMESTAMPTZ</span></div>
+        <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">status</span><span class="er-col-type">'active'|'closed'</span></div>
+        <div class="er-row"><span class="b-jsonb">JSONB</span><span class="er-col-name">metadata</span></div>
+      </div>
+      <div class="er-arrow">→</div>
+      <!-- 오른쪽: 3개 자식 테이블 -->
+      <div class="er-side-tables">
+        <div class="er-table green">
+          <div class="er-table-header">
+            <span><span class="er-icon">🤖</span> modal_results</span>
+            <span style="font-size:11px;background:#fde047;color:#854d0e;padding:2px 8px;border-radius:4px;font-weight:700">★ 핵심</span>
+          </div>
+          <div class="er-row"><span class="b-pk">PK</span><span class="er-col-name">id</span><span class="er-col-type">BIGSERIAL</span></div>
+          <div class="er-row"><span class="b-fk">FK</span><span class="er-col-name">encounter_id</span><span class="er-col-type">TEXT</span></div>
+          <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">modality</span><span class="er-col-type">ECG|CXR|LAB</span></div>
+          <div class="er-row star"><span class="b-jsonb">JSONB</span><span class="er-col-name">raw_response</span><span class="er-col-type">+ GIN 인덱스</span></div>
+          <div class="er-row"><span class="er-col-name" style="margin-left:32px">risk_level</span><span class="er-col-type">routine|urgent|critical</span></div>
+          <div class="er-row"><span class="b-uniq">UNIQUE</span><span class="er-col-name">(encounter_id, modality)</span></div>
+        </div>
+        <div class="er-table purple">
+          <div class="er-table-header"><span><span class="er-icon">📄</span> diagnostic_reports</span></div>
+          <div class="er-row"><span class="b-pk">PK</span><span class="er-col-name">id</span><span class="er-col-type">BIGSERIAL</span></div>
+          <div class="er-row"><span class="b-fk">FK</span><span class="er-col-name">encounter_id</span></div>
+          <div class="er-row"><span class="er-col-name" style="margin-left:32px">ai_diagnosis</span><span class="er-col-type">TEXT</span></div>
+          <div class="er-row"><span class="b-jsonb">JSONB</span><span class="er-col-name">ai_recommendations</span></div>
+          <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">status</span><span class="er-col-type">preliminary|signed|amended</span></div>
+          <div class="er-row"><span class="b-uniq">UNIQUE</span><span class="er-col-name">(encounter_id) — 1개만</span></div>
+        </div>
+        <div class="er-table orange">
+          <div class="er-table-header"><span><span class="er-icon">📡</span> modal_events</span></div>
+          <div class="er-row"><span class="b-pk">PK</span><span class="er-col-name">id</span><span class="er-col-type">BIGSERIAL</span></div>
+          <div class="er-row"><span class="er-col-name" style="margin-left:32px">encounter_id</span><span class="er-col-type">TEXT</span></div>
+          <div class="er-row"><span class="b-nn">NN</span><span class="er-col-name">event_type</span><span class="er-col-type">VARCHAR(40)</span></div>
+          <div class="er-row"><span class="b-jsonb">JSONB</span><span class="er-col-name">payload</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding:12px 16px;background:rgba(255,255,255,0.7);border-radius:8px;font-size:13px;color:#1e40af">
+      <strong>관계:</strong> encounters를 중심으로 모든 자식 테이블이 <span class="mono">encounter_id</span>로 연결된다 · ON DELETE CASCADE 적용 · subject_id는 트리거로 자동 채움
+    </div>
+  </div>
+
+  <h2 class="sec-title">⭐ JSONB 컬럼 예시</h2>
+
+  <div class="grid-2">
+    <!-- ECG raw_response -->
+    <div class="card">
+      <div class="card-header red">
+        <span class="card-title" style="font-size:16px">🫀 ECG 모달 결과</span>
+        <span class="card-desc">modal_results.raw_response</span>
+      </div>
+      <div class="card-body" style="padding:16px">
+        <div class="code" style="margin:0;font-size:13px">{
+  <span class="k">"status"</span>: <span class="s">"success"</span>,
+  <span class="k">"modal"</span>: <span class="s">"ecg"</span>,
+  <span class="k">"risk_level"</span>: <span class="s">"critical"</span>,
+  <span class="k">"findings"</span>: [
+    {
+      <span class="k">"name"</span>: <span class="s">"atrial_fibrillation"</span>,
+      <span class="k">"confidence"</span>: <span class="n">0.87</span>,
+      <span class="k">"severity"</span>: <span class="s">"critical"</span>,
+      <span class="k">"recommendation"</span>: <span class="s">"즉시 심장내과 협진"</span>
+    }
+  ],
+  <span class="k">"abnormal_flags"</span>: {
+    <span class="k">"heart_rate"</span>: {
+      <span class="k">"value"</span>: <span class="n">142</span>,
+      <span class="k">"status"</span>: <span class="s">"CRITICAL_HIGH"</span>
+    }
+  },
+  <span class="k">"predictions"</span>: {
+    <span class="k">"atrial_fibrillation"</span>: <span class="n">0.87</span>,
+    <span class="k">"heart_failure"</span>: <span class="n">0.72</span>,
+    <span class="k">"hyperkalemia"</span>: <span class="n">0.45</span>
+  },
+  <span class="k">"metadata"</span>: {
+    <span class="k">"latency_ms"</span>: <span class="n">480</span>,
+    <span class="k">"model_version"</span>: <span class="s">"v1.2.0"</span>
+  }
+}</div>
+      </div>
+    </div>
+
+    <!-- Lab raw_response -->
+    <div class="card">
+      <div class="card-header orange">
+        <span class="card-title" style="font-size:16px">🧪 Lab 모달 결과</span>
+        <span class="card-desc">modal_results.raw_response</span>
+      </div>
+      <div class="card-body" style="padding:16px">
+        <div class="code" style="margin:0;font-size:13px">{
+  <span class="k">"status"</span>: <span class="s">"success"</span>,
+  <span class="k">"modal"</span>: <span class="s">"lab"</span>,
+  <span class="k">"risk_level"</span>: <span class="s">"critical"</span>,
+  <span class="k">"predicted_group"</span>: <span class="s">"Cardio_Group"</span>,
+  <span class="k">"probabilities"</span>: {
+    <span class="k">"Cardio_Group"</span>: <span class="n">0.68</span>,
+    <span class="k">"Sepsis_Group"</span>: <span class="n">0.18</span>,
+    <span class="k">"Kidney_Group"</span>: <span class="n">0.11</span>
+  },
+  <span class="k">"abnormal_flags"</span>: {
+    <span class="k">"potassium"</span>: {
+      <span class="k">"value"</span>: <span class="n">6.1</span>,
+      <span class="k">"status"</span>: <span class="s">"CRITICAL_HIGH"</span>
+    },
+    <span class="k">"ntprobnp"</span>: {
+      <span class="k">"value"</span>: <span class="n">1200</span>,
+      <span class="k">"status"</span>: <span class="s">"CRITICAL_HIGH"</span>
+    },
+    <span class="k">"creatinine"</span>: {
+      <span class="k">"value"</span>: <span class="n">2.8</span>,
+      <span class="k">"status"</span>: <span class="s">"HIGH"</span>
+    }
+  }
+}</div>
+      </div>
+    </div>
+
+    <!-- ai_recommendations -->
+    <div class="card">
+      <div class="card-header purple">
+        <span class="card-title" style="font-size:16px">📋 AI 권고 조치</span>
+        <span class="card-desc">diagnostic_reports.ai_recommendations</span>
+      </div>
+      <div class="card-body" style="padding:16px">
+        <div class="code" style="margin:0;font-size:13px">[
+  <span class="s">"심장내과 즉시 협진"</span>,
+  <span class="s">"이뇨제 투여 (폐부종 치료)"</span>,
+  <span class="s">"고칼륨혈증 처치 (칼슘 글루코네이트)"</span>,
+  <span class="s">"신장내과 협진 (크레아티닌 2.8)"</span>,
+  <span class="s">"지속적 심전도 모니터링"</span>
+]</div>
+      </div>
+    </div>
+
+    <!-- modal_events.payload -->
+    <div class="card">
+      <div class="card-header cyan">
+        <span class="card-title" style="font-size:16px">📡 WebSocket 이벤트</span>
+        <span class="card-desc">modal_events.payload</span>
+      </div>
+      <div class="card-body" style="padding:16px">
+        <div class="code" style="margin:0;font-size:13px">{
+  <span class="k">"event_type"</span>: <span class="s">"modal_completed"</span>,
+  <span class="k">"encounter_id"</span>: <span class="s">"enc-7890"</span>,
+  <span class="k">"modality"</span>: <span class="s">"ECG"</span>,
+  <span class="k">"risk_level"</span>: <span class="s">"critical"</span>,
+  <span class="k">"timestamp"</span>: <span class="s">"2026-05-14T09:15:32Z"</span>,
+  <span class="k">"next_recommended"</span>: <span class="s">"LAB"</span>
+}</div>
+      </div>
+    </div>
+  </div>
+
+  <h2 class="sec-title">🔧 자동 트리거 2개</h2>
+  <div class="grid-2">
+    <div class="trigger-card">
+      <div class="t-name">_fill_subject_id()</div>
+      <div class="t-desc">encounter_id로 INSERT 시 encounters에서 subject_id 자동 조회해서 채움</div>
+      <div style="font-size:13px;color:#854d0e">적용: <strong>3개 테이블</strong> (modal_results, diagnostic_reports, modal_events)</div>
+    </div>
+    <div class="trigger-card">
+      <div class="t-name">_bump_updated_at()</div>
+      <div class="t-desc">UPDATE 시 updated_at 컬럼을 NOW()로 자동 갱신</div>
+      <div style="font-size:13px;color:#854d0e">적용: <strong>diagnostic_reports</strong></div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 4: DB SECURITY                                   -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="db-security">
+  <h1 class="page-title">🔒 security.yaml — DB 보안</h1>
+  <p class="page-subtitle">3계층 보안 전략 — 네트워크 격리 + 인증/인가 + 암호화</p>
+
+  <h2 class="sec-title">🛡️ 3계층 보안 전략</h2>
+  <div class="grid-3">
+    <div class="opt red">
+      <div class="opt-label" style="color:#b91c1c">Layer 1 — 네트워크 격리</div>
+      <div class="opt-value" style="color:#b91c1c">VPC Private Subnet</div>
+      <div class="opt-note">인터넷 직접 접근 불가<br>SG: 중앙백엔드 + HAPI FHIR만 5432 허용</div>
+    </div>
+    <div class="opt orange">
+      <div class="opt-label" style="color:#c2410c">Layer 2 — 인증/인가</div>
+      <div class="opt-value" style="color:#c2410c">Secrets Manager + IAM</div>
+      <div class="opt-note">30일 자동 로테이션<br>IAM 역할 기반 토큰 인증</div>
+    </div>
+    <div class="opt green">
+      <div class="opt-label" style="color:#059669">Layer 3 — 암호화</div>
+      <div class="opt-value" style="color:#059669">KMS + TLS</div>
+      <div class="opt-note">저장: KMS AES-256<br>전송: TLS 강제 (ssl_mode: require)</div>
+    </div>
+  </div>
+
+  <h2 class="sec-title">🌐 Security Group 규칙</h2>
+<div class="arch">
+[인터넷]  <span style="color:#ef4444">✕ 직접 접근 차단</span>
+    │
+[VPC Private Subnet]
+    │
+    ├── <span class="box">sg-central-backend</span>  <span class="arrow">──→</span>  Aurora:5432  <span style="color:#10b981">✓</span>  (drai_ops)
+    └── <span class="box">sg-hapi-fhir</span>        <span class="arrow">──→</span>  Aurora:5432  <span style="color:#10b981">✓</span>  (hapi)
+
+Egress: 0.0.0.0/0:443  <span class="note">← AWS 서비스 엔드포인트 (Secrets Manager, CloudWatch)</span>
+</div>
+
+  <h2 class="sec-title">👥 DB 사용자 4종</h2>
+  <table class="tbl">
+    <thead><tr><th>사용자</th><th>접근 DB</th><th>권한</th><th>용도</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">admin</td><td>전체</td><td><span class="b-crit">superuser</span></td><td>DDL 작업 전용 — 운영 중 사용 금지</td></tr>
+      <tr><td class="mono">app_user</td><td class="mono">drai_ops</td><td>SELECT, INSERT, UPDATE, DELETE</td><td>중앙백엔드 애플리케이션</td></tr>
+      <tr><td class="mono">hapi_user</td><td class="mono">hapi</td><td>ALL</td><td>HAPI FHIR 서버 전용</td></tr>
+      <tr><td class="mono">readonly_user</td><td class="mono">drai_ops</td><td>SELECT</td><td>모니터링/분석 전용</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">🔑 Secrets Manager 설정</h2>
+  <div class="grid-2">
+    <div class="opt purple">
+      <div class="opt-label">시크릿 이름</div>
+      <div class="opt-value" style="color:#7c3aed">drai/aurora-credentials</div>
+      <div class="opt-note">username, password, host, port, dbname 포함</div>
+    </div>
+    <div class="opt green">
+      <div class="opt-label">자동 로테이션</div>
+      <div class="opt-value" style="color:#059669">rate(30 days)</div>
+      <div class="opt-note">Lambda 함수로 자동 비밀번호 변경</div>
+    </div>
+  </div>
+
+  <h2 class="sec-title">📋 pgaudit 설정 (의료 규정 준수)</h2>
+  <div class="grid-3">
+    <div class="opt"><div class="opt-label">log_level</div><div class="opt-value">write</div><div class="opt-note">INSERT/UPDATE/DELETE 기록<br>(SELECT 제외)</div></div>
+    <div class="opt"><div class="opt-label">log_parameter</div><div class="opt-value">true</div><div class="opt-note">쿼리 파라미터 값도 로그에 포함</div></div>
+    <div class="opt red"><div class="opt-label">보관 기간</div><div class="opt-value" style="color:#b91c1c">2190일 (6년)</div><div class="opt-note">의료법 규정 준수</div></div>
+  </div>
+
+  <h2 class="sec-title">📜 마이그레이션 SQL (migrations.yaml)</h2>
+  <table class="tbl">
+    <thead><tr><th style="width:80px">버전</th><th>내용</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b-info">001</span></td><td><strong>encounters</strong> 테이블 + 3개 인덱스</td></tr>
+      <tr><td><span class="b-info">002</span></td><td><strong>modal_results</strong> 테이블 + GIN 인덱스 + UNIQUE 제약</td></tr>
+      <tr><td><span class="b-info">003</span></td><td><strong>diagnostic_reports</strong> 테이블 + UNIQUE(encounter_id)</td></tr>
+      <tr><td><span class="b-info">004</span></td><td><strong>modal_events</strong> 테이블 + 3개 인덱스</td></tr>
+      <tr><td><span class="b-info">005</span></td><td><strong>_bump_updated_at()</strong> 트리거 함수</td></tr>
+      <tr><td><span class="b-info">006</span></td><td><strong>_fill_subject_id()</strong> 트리거 함수 + 3개 테이블 적용</td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 5: CLOUDWATCH                                    -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="mon-cloudwatch">
+  <h1 class="page-title">📊 cloudwatch.yaml</h1>
+  <p class="page-subtitle">로그 수집 · 메트릭 · 대시보드 — 시스템 전체 관측</p>
+
+  <h2 class="sec-title">📁 로그 그룹 8개</h2>
+  <table class="tbl">
+    <thead><tr><th>로그 그룹</th><th>서비스</th><th>보관 기간</th><th>KMS 암호화</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">/drai/central-backend</td><td>FastAPI 중앙백엔드</td><td><span class="b-info">90일</span></td><td><span class="b-good">✅</span></td></tr>
+      <tr><td class="mono">/drai/hapi-fhir</td><td>HAPI FHIR 서버</td><td><span class="b-info">90일</span></td><td><span class="b-good">✅</span></td></tr>
+      <tr><td class="mono">/drai/aurora/postgresql</td><td>Aurora DB 쿼리 로그</td><td><span class="b-warn">180일</span></td><td><span class="b-good">✅</span></td></tr>
+      <tr><td class="mono">/drai/modal/ecg</td><td>ECG 추론 서비스</td><td><span class="b-low">30일</span></td><td>-</td></tr>
+      <tr><td class="mono">/drai/modal/cxr</td><td>CXR 추론 서비스</td><td><span class="b-low">30일</span></td><td>-</td></tr>
+      <tr><td class="mono">/drai/modal/lab</td><td>Lab 추론 서비스</td><td><span class="b-low">30일</span></td><td>-</td></tr>
+      <tr><td class="mono">/drai/bedrock-agent</td><td>Bedrock Agent</td><td><span class="b-info">90일</span></td><td>-</td></tr>
+      <tr><td class="mono">/drai/alb/access</td><td>ALB 액세스 로그</td><td><span class="b-low">30일</span></td><td>-</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">🔍 메트릭 필터 5개 — 로그 패턴 → 커스텀 메트릭</h2>
+  <table class="tbl">
+    <thead><tr><th>필터 이름</th><th>감지 패턴</th><th>생성 메트릭</th><th>네임스페이스</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">CriticalRiskDetected</td><td class="mono">"risk_level":"critical"</td><td class="mono">CriticalRiskCount</td><td><span class="b-crit">DRAI/Clinical</span></td></tr>
+      <tr><td class="mono">ModalInferenceError</td><td class="mono">"status":"error"</td><td class="mono">InferenceErrorCount</td><td><span class="b-warn">DRAI/Modal</span></td></tr>
+      <tr><td class="mono">HighLatencyInference</td><td class="mono">[latency_ms &gt; 5000]</td><td class="mono">HighLatencyCount</td><td><span class="b-warn">DRAI/Modal</span></td></tr>
+      <tr><td class="mono">WebSocketDisconnect</td><td class="mono">"WebSocket disconnected"</td><td class="mono">DisconnectCount</td><td><span class="b-info">DRAI/WebSocket</span></td></tr>
+      <tr><td class="mono">FHIRRequestFailed</td><td class="mono">[status_code &gt;= 500]</td><td class="mono">ServerErrorCount</td><td><span class="b-info">DRAI/FHIR</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">📈 커스텀 메트릭 5개 (DRAI/Clinical)</h2>
+  <div class="grid-3">
+    <div class="opt"><div class="opt-label">EncounterCreated</div><div class="opt-value">Count</div><div class="opt-note">신규 방문 생성 수</div></div>
+    <div class="opt"><div class="opt-label">ModalInferenceLatency</div><div class="opt-value">Milliseconds</div><div class="opt-note">모달별 추론 소요 시간 (ECG/CXR/LAB)</div></div>
+    <div class="opt"><div class="opt-label">DiagnosticReportSigned</div><div class="opt-value">Count</div><div class="opt-note">의사 서명 완료 소견서 수</div></div>
+    <div class="opt"><div class="opt-label">ActiveEncounters</div><div class="opt-value">Count</div><div class="opt-note">현재 진행 중인 방문 수</div></div>
+    <div class="opt"><div class="opt-label">PatientWaitTime</div><div class="opt-value">Seconds</div><div class="opt-note">도착~첫 모달 결과 대기 시간</div></div>
+  </div>
+
+  <h2 class="sec-title">📺 대시보드 위젯 (DRAI-Operations)</h2>
+  <div class="grid-2">
+    <div class="opt"><div class="opt-label">활성 방문 수</div><div class="opt-value">ActiveEncounters</div><div class="opt-note">period: 60s · stat: Maximum</div></div>
+    <div class="opt"><div class="opt-label">모달별 추론 지연시간</div><div class="opt-value">ECG / CXR / LAB</div><div class="opt-note">period: 300s · stat: Average</div></div>
+    <div class="opt red"><div class="opt-label">CRITICAL 위험도 감지</div><div class="opt-value" style="color:#b91c1c">CriticalRiskCount</div><div class="opt-note">period: 300s · color: red</div></div>
+    <div class="opt green"><div class="opt-label">Aurora ACU 사용량</div><div class="opt-value" style="color:#059669">ServerlessDatabaseCapacity</div><div class="opt-note">period: 60s · stat: Average</div></div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 6: ALARMS                                        -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="mon-alarms">
+  <h1 class="page-title">🚨 alarms.yaml — 이상 감지 알림</h1>
+  <p class="page-subtitle">CloudWatch Alarms · SNS · 13개 알람</p>
+
+  <h2 class="sec-title">📢 SNS 알림 채널 2개</h2>
+  <div class="grid-2">
+    <div class="opt red">
+      <div class="opt-label" style="color:#b91c1c">drai-critical-alerts</div>
+      <div class="opt-value" style="color:#b91c1c">이메일 + Slack</div>
+      <div class="opt-note">oncall-team@hospital.co.kr<br>Slack #drai-alerts 채널</div>
+    </div>
+    <div class="opt orange">
+      <div class="opt-label" style="color:#c2410c">drai-warning-alerts</div>
+      <div class="opt-value" style="color:#c2410c">이메일</div>
+      <div class="opt-note">dev-team@hospital.co.kr</div>
+    </div>
+  </div>
+
+  <h2 class="sec-title">🗄️ Aurora DB 알람 (4개)</h2>
+  <div class="alarm-list">
+    <div class="alarm-row"><div class="alarm-name">Aurora-CPU-High</div><div class="alarm-cond">CPU 사용률 초과 · 5분 지속</div><div class="alarm-thresh">&gt; 80%</div><span class="b-warn">WARNING</span></div>
+    <div class="alarm-row"><div class="alarm-name">Aurora-ACU-Max</div><div class="alarm-cond">ACU 최대치 90% 도달 · 15분</div><div class="alarm-thresh">&gt; 3.6 ACU</div><span class="b-crit">CRITICAL</span></div>
+    <div class="alarm-row"><div class="alarm-name">Aurora-Connections-High</div><div class="alarm-cond">DB 연결 수 초과 · 5분</div><div class="alarm-thresh">&gt; 100개</div><span class="b-warn">WARNING</span></div>
+    <div class="alarm-row"><div class="alarm-name">Aurora-FreeableMemory-Low</div><div class="alarm-cond">여유 메모리 부족 · 5분</div><div class="alarm-thresh">&lt; 256MB</div><span class="b-crit">CRITICAL</span></div>
+  </div>
+
+  <h2 class="sec-title">🐳 ECS 서비스 알람 (3개)</h2>
+  <div class="alarm-list">
+    <div class="alarm-row"><div class="alarm-name">Backend-CPU-High</div><div class="alarm-cond">중앙백엔드 CPU 초과 · 5분</div><div class="alarm-thresh">&gt; 80%</div><span class="b-warn">WARNING</span></div>
+    <div class="alarm-row"><div class="alarm-name">Backend-Memory-High</div><div class="alarm-cond">중앙백엔드 메모리 초과 · 5분</div><div class="alarm-thresh">&gt; 85%</div><span class="b-warn">WARNING</span></div>
+    <div class="alarm-row"><div class="alarm-name">Backend-Task-Unhealthy</div><div class="alarm-cond">Running Task 0개 (서비스 다운) · 2분</div><div class="alarm-thresh">&lt; 1개</div><span class="b-crit">CRITICAL</span></div>
+  </div>
+
+  <h2 class="sec-title">🏥 임상 비즈니스 알람 (3개)</h2>
+  <div class="alarm-list">
+    <div class="alarm-row"><div class="alarm-name">Critical-Risk-Detected</div><div class="alarm-cond">CRITICAL 위험도 환자 감지 · 즉시</div><div class="alarm-thresh">≥ 1회/분</div><span class="b-crit">CRITICAL</span></div>
+    <div class="alarm-row"><div class="alarm-name">Modal-Inference-Error-Spike</div><div class="alarm-cond">추론 에러 급증 · 5분</div><div class="alarm-thresh">≥ 3회</div><span class="b-crit">CRITICAL</span></div>
+    <div class="alarm-row"><div class="alarm-name">High-Latency-Spike</div><div class="alarm-cond">추론 5초 초과 급증 · 5분</div><div class="alarm-thresh">≥ 5회</div><span class="b-warn">WARNING</span></div>
+  </div>
+
+  <h2 class="sec-title">�� ALB 알람 (3개)</h2>
+  <div class="alarm-list">
+    <div class="alarm-row"><div class="alarm-name">ALB-5xx-High</div><div class="alarm-cond">5xx 에러 급증 · 5분</div><div class="alarm-thresh">&gt; 10회</div><span class="b-crit">CRITICAL</span></div>
+    <div class="alarm-row"><div class="alarm-name">ALB-TargetResponseTime-High</div><div class="alarm-cond">평균 응답 시간 초과 · 5분</div><div class="alarm-thresh">&gt; 3초</div><span class="b-warn">WARNING</span></div>
+    <div class="alarm-row"><div class="alarm-name">ALB-UnhealthyHost</div><div class="alarm-cond">Unhealthy 타겟 존재 · 2분</div><div class="alarm-thresh">≥ 1개</div><span class="b-crit">CRITICAL</span></div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 7: CLOUDTRAIL · CONFIG                          -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="mon-trail-config">
+  <h1 class="page-title">🕵️ CloudTrail · AWS Config</h1>
+  <p class="page-subtitle">AWS API 감사 추적 + 인프라 규정 준수 검사</p>
+
+  <div class="card">
+    <div class="card-header yellow">
+      <span class="card-title">🕵️ cloudtrail.yaml — AWS API 감사 추적</span>
+      <span class="card-desc">"누가 언제 어떤 AWS 리소스를 변경했는가"</span>
+    </div>
+    <div class="card-body">
+      <div class="note">CloudWatch와의 차이: CloudWatch는 앱 내부 동작 기록, CloudTrail은 AWS 콘솔/CLI/SDK로 실행된 인프라 조작 이력 기록</div>
+
+      <h3>Trail 설정</h3>
+      <div class="grid-3">
+        <div class="opt"><div class="opt-label">Trail 이름</div><div class="opt-value">drai-audit-trail</div></div>
+        <div class="opt"><div class="opt-label">로그 저장</div><div class="opt-value">S3</div><div class="opt-note">drai-cloudtrail-logs · 무결성 검증 활성화</div></div>
+        <div class="opt"><div class="opt-label">실시간 전송</div><div class="opt-value">/drai/cloudtrail</div><div class="opt-note">CloudWatch Logs · 365일 보관</div></div>
+        <div class="opt purple"><div class="opt-label">암호화</div><div class="opt-value" style="color:#7c3aed">KMS</div><div class="opt-note">alias/drai-cloudtrail-key</div></div>
+        <div class="opt"><div class="opt-label">멀티 리전</div><div class="opt-value">false</div><div class="opt-note">서울 단일 리전</div></div>
+        <div class="opt orange"><div class="opt-label">Insight 감지</div><div class="opt-value" style="color:#c2410c">2종</div><div class="opt-note">ApiCallRateInsight<br>ApiErrorRateInsight</div></div>
+      </div>
+
+      <h3>고위험 이벤트 감시 9개</h3>
+      <div class="alarm-list">
+        <div class="alarm-row"><div class="alarm-name">DeleteDBCluster</div><div class="alarm-cond">Aurora 클러스터 삭제 시도</div><div></div><span class="b-crit">CRITICAL</span></div>
+        <div class="alarm-row"><div class="alarm-name">DeleteSecret</div><div class="alarm-cond">Secrets Manager 시크릿 삭제</div><div></div><span class="b-crit">CRITICAL</span></div>
+        <div class="alarm-row"><div class="alarm-name">PutBucketPolicy</div><div class="alarm-cond">S3 버킷 정책 변경 (데이터 유출 위험)</div><div></div><span class="b-crit">CRITICAL</span></div>
+        <div class="alarm-row"><div class="alarm-name">ModifyDBCluster</div><div class="alarm-cond">Aurora 클러스터 설정 변경</div><div></div><span class="b-warn">WARNING</span></div>
+        <div class="alarm-row"><div class="alarm-name">StopDBCluster</div><div class="alarm-cond">Aurora 클러스터 중지</div><div></div><span class="b-warn">WARNING</span></div>
+        <div class="alarm-row"><div class="alarm-name">AttachRolePolicy</div><div class="alarm-cond">IAM 역할에 정책 추가</div><div></div><span class="b-warn">WARNING</span></div>
+        <div class="alarm-row"><div class="alarm-name">AuthorizeSecurityGroupIngress</div><div class="alarm-cond">Security Group 인바운드 규칙 추가</div><div></div><span class="b-warn">WARNING</span></div>
+        <div class="alarm-row"><div class="alarm-name">CreateUser</div><div class="alarm-cond">IAM 사용자 생성</div><div></div><span class="b-warn">WARNING</span></div>
+        <div class="alarm-row"><div class="alarm-name">ConsoleLogin (Root)</div><div class="alarm-cond">루트 계정 콘솔 로그인</div><div></div><span class="b-info">INFO</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header green">
+      <span class="card-title">✅ aws-config.yaml — 규정 준수 검사 (17개 Rules)</span>
+      <span class="card-desc">"지금 인프라 상태가 보안 기준을 충족하는가"</span>
+    </div>
+    <div class="card-body">
+      <div class="note">CloudTrail과의 차이: CloudTrail은 "언제 변경했나" (이벤트 로그), AWS Config는 "지금 상태가 올바른가" (현재 상태 평가)</div>
+
+      <h3>추적 리소스 타입 15개</h3>
+      <div class="grid-3" style="font-size:13px;color:#475569;line-height:2">
+        <div>RDS::DBCluster<br>RDS::DBInstance<br>EC2::SecurityGroup<br>EC2::VPC<br>EC2::Subnet</div>
+        <div>ECS::Cluster<br>ECS::Service<br>ECS::TaskDefinition<br>ELBv2::LoadBalancer<br>S3::Bucket</div>
+        <div>IAM::Role<br>IAM::Policy<br>SecretsManager::Secret<br>KMS::Key<br>Lambda::Function</div>
+      </div>
+
+      <h3>Config Rules 17개</h3>
+      <div class="rule-group">
+        <div class="rule-title">��️ RDS / Aurora (4개)</div>
+        <div class="rule-item"><div class="rule-name">rds-storage-encrypted</div><div class="rule-desc">Aurora 스토리지 암호화 활성화 여부</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">rds-instance-public-access</div><div class="rule-desc">RDS 퍼블릭 접근 차단 확인</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">rds-cluster-deletion-protection</div><div class="rule-desc">Aurora 클러스터 삭제 보호 활성화</div><span class="b-warn">HIGH</span></div>
+        <div class="rule-item"><div class="rule-name">rds-multi-az</div><div class="rule-desc">Aurora Multi-AZ (Reader) 구성 여부</div><span class="b-info">MEDIUM</span></div>
+      </div>
+      <div class="rule-group red">
+        <div class="rule-title red">🌐 네트워크 / 보안 (3개)</div>
+        <div class="rule-item"><div class="rule-name">vpc-sg-open-only-to-authorized</div><div class="rule-desc">허가 포트(443, 5432)만 열려있는지</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">restricted-ssh</div><div class="rule-desc">SSH(22) 포트 0.0.0.0/0 차단</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">vpc-flow-logs-enabled</div><div class="rule-desc">VPC Flow Logs 활성화 여부</div><span class="b-warn">HIGH</span></div>
+      </div>
+      <div class="rule-group purple">
+        <div class="rule-title purple">�� 암호화 (3개)</div>
+        <div class="rule-item"><div class="rule-name">s3-bucket-public-read-prohibited</div><div class="rule-desc">S3 버킷 퍼블릭 읽기 차단</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">s3-bucket-server-side-encryption</div><div class="rule-desc">S3 서버 사이드 암호화 활성화</div><span class="b-warn">HIGH</span></div>
+        <div class="rule-item"><div class="rule-name">kms-key-rotation</div><div class="rule-desc">KMS 키 자동 로테이션 활성화</div><span class="b-info">MEDIUM</span></div>
+      </div>
+      <div class="rule-group orange">
+        <div class="rule-title orange">👤 IAM (3개)</div>
+        <div class="rule-item"><div class="rule-name">iam-root-access-key-check</div><div class="rule-desc">루트 계정 액세스 키 미사용 확인</div><span class="b-crit">CRITICAL</span></div>
+        <div class="rule-item"><div class="rule-name">iam-policy-no-admin</div><div class="rule-desc">IAM 정책에 *:* 관리자 권한 없는지</div><span class="b-warn">HIGH</span></div>
+        <div class="rule-item"><div class="rule-name">iam-user-mfa-enabled</div><div class="rule-desc">IAM 사용자 MFA 활성화</div><span class="b-warn">HIGH</span></div>
+      </div>
+      <div class="rule-group green">
+        <div class="rule-title green">🐳 ECS + Secrets Manager (3개)</div>
+        <div class="rule-item"><div class="rule-name">ecs-task-definition-log-configuration</div><div class="rule-desc">ECS Task 로그 설정 확인</div><span class="b-info">MEDIUM</span></div>
+        <div class="rule-item"><div class="rule-name">secretsmanager-rotation-enabled</div><div class="rule-desc">Secrets Manager 자동 로테이션 활성화</div><span class="b-warn">HIGH</span></div>
+        <div class="rule-item"><div class="rule-name">secretsmanager-secret-unused</div><div class="rule-desc">90일 이상 미사용 시크릿 감지</div><span class="b-low">LOW</span></div>
+      </div>
+
+      <h3>자동 교정 (Remediation) 3개</h3>
+      <table class="tbl">
+        <thead><tr><th>위반 규칙</th><th>자동 교정 액션</th><th>실행 방식</th></tr></thead>
+        <tbody>
+          <tr><td>rds-instance-public-access</td><td>AWS-DisablePublicAccessForRDSInstance</td><td><span class="b-good">자동</span></td></tr>
+          <tr><td>s3-bucket-public-read-prohibited</td><td>AWS-DisableS3BucketPublicReadWrite</td><td><span class="b-good">자동</span></td></tr>
+          <tr><td>restricted-ssh</td><td>AWS-DisableIncomingSSHForSecurityGroup</td><td><span class="b-low">수동 (오탐 방지)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 7: CLOUDTRAIL + AWS CONFIG                      -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="mon-trail-config">
+  <h1 class="page-title">🕵️ CloudTrail · AWS Config</h1>
+  <p class="page-subtitle">AWS API 감사 추적 · 인프라 규정 준수 자동 검사</p>
+
+  <div class="note">
+    <strong>둘의 차이:</strong> CloudTrail은 "<u>언제 누가 변경했나</u>"(이벤트 로그), AWS Config는 "<u>지금 상태가 올바른가</u>"(현재 상태 평가)를 본다.
+  </div>
+
+  <h2 class="sec-title">🕵️ cloudtrail.yaml — Trail 설정</h2>
+  <div class="grid-3">
+    <div class="opt"><div class="opt-label">Trail 이름</div><div class="opt-value">drai-audit-trail</div></div>
+    <div class="opt"><div class="opt-label">로그 저장</div><div class="opt-value">S3: drai-cloudtrail-logs</div><div class="opt-note">무결성 검증 활성화 (변조 방지)</div></div>
+    <div class="opt"><div class="opt-label">실시간 전송</div><div class="opt-value">/drai/cloudtrail</div><div class="opt-note">CloudWatch Logs · 365일 보관</div></div>
+    <div class="opt purple"><div class="opt-label">암호화</div><div class="opt-value" style="color:#7c3aed">KMS</div><div class="opt-note">alias/drai-cloudtrail-key</div></div>
+    <div class="opt"><div class="opt-label">멀티 리전</div><div class="opt-value">false</div><div class="opt-note">ap-northeast-2 단일 리전</div></div>
+    <div class="opt orange"><div class="opt-label">Insight 감지</div><div class="opt-value" style="color:#c2410c">2종</div><div class="opt-note">ApiCallRateInsight<br>ApiErrorRateInsight</div></div>
+  </div>
+
+  <h2 class="sec-title">⚠️ 고위험 이벤트 감시 9개</h2>
+  <table class="tbl">
+    <thead><tr><th>이벤트</th><th>의미</th><th>심각도</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">DeleteDBCluster</td><td>Aurora 클러스터 삭제 시도</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">DeleteSecret</td><td>Secrets Manager 시크릿 삭제</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">PutBucketPolicy</td><td>S3 버킷 정책 변경 (데이터 유출 위험)</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">ModifyDBCluster</td><td>Aurora 클러스터 설정 변경</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">StopDBCluster</td><td>Aurora 클러스터 중지</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">AttachRolePolicy</td><td>IAM 역할에 정책 추가</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">AuthorizeSecurityGroupIngress</td><td>Security Group 인바운드 규칙 추가</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">CreateUser</td><td>IAM 사용자 생성</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">ConsoleLogin (Root)</td><td>루트 계정 콘솔 로그인</td><td><span class="b-info">INFO</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">✅ aws-config.yaml — Config Rules 17개</h2>
+
+  <div class="rule-group">
+    <div class="rule-title">🗄️ RDS / Aurora (4개)</div>
+    <div class="rule-item"><div class="rule-name">rds-storage-encrypted</div><div class="rule-desc">Aurora 스토리지 암호화 활성화 여부</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">rds-instance-public-access</div><div class="rule-desc">RDS 퍼블릭 접근 차단 확인</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">rds-cluster-deletion-protection</div><div class="rule-desc">Aurora 클러스터 삭제 보호 활성화</div><span class="b-warn">HIGH</span></div>
+    <div class="rule-item"><div class="rule-name">rds-multi-az</div><div class="rule-desc">Aurora Multi-AZ (Reader) 구성 여부</div><span class="b-info">MEDIUM</span></div>
+  </div>
+
+  <div class="rule-group red">
+    <div class="rule-title red">🌐 네트워크 / 보안 (3개)</div>
+    <div class="rule-item"><div class="rule-name">vpc-sg-open-only-to-authorized</div><div class="rule-desc">허가 포트(443, 5432)만 열려있는지</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">restricted-ssh</div><div class="rule-desc">SSH(22) 포트 0.0.0.0/0 차단 확인</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">vpc-flow-logs-enabled</div><div class="rule-desc">VPC Flow Logs 활성화 여부</div><span class="b-warn">HIGH</span></div>
+  </div>
+
+  <div class="rule-group purple">
+    <div class="rule-title purple">🔐 암호화 (3개)</div>
+    <div class="rule-item"><div class="rule-name">s3-bucket-public-read-prohibited</div><div class="rule-desc">S3 버킷 퍼블릭 읽기 차단</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">s3-bucket-server-side-encryption</div><div class="rule-desc">S3 서버 사이드 암호화 활성화</div><span class="b-warn">HIGH</span></div>
+    <div class="rule-item"><div class="rule-name">kms-key-rotation</div><div class="rule-desc">KMS 키 자동 로테이션 활성화</div><span class="b-info">MEDIUM</span></div>
+  </div>
+
+  <div class="rule-group orange">
+    <div class="rule-title orange">👤 IAM (3개)</div>
+    <div class="rule-item"><div class="rule-name">iam-root-access-key-check</div><div class="rule-desc">루트 계정 액세스 키 미사용 확인</div><span class="b-crit">CRITICAL</span></div>
+    <div class="rule-item"><div class="rule-name">iam-policy-no-admin</div><div class="rule-desc">IAM 정책에 *:* 관리자 권한 없는지</div><span class="b-warn">HIGH</span></div>
+    <div class="rule-item"><div class="rule-name">iam-user-mfa-enabled</div><div class="rule-desc">IAM 사용자 MFA 활성화</div><span class="b-warn">HIGH</span></div>
+  </div>
+
+  <div class="rule-group green">
+    <div class="rule-title green">🐳 ECS · Secrets Manager (3개)</div>
+    <div class="rule-item"><div class="rule-name">ecs-task-definition-log-configuration</div><div class="rule-desc">ECS Task 로그 설정 확인</div><span class="b-info">MEDIUM</span></div>
+    <div class="rule-item"><div class="rule-name">secretsmanager-rotation-enabled</div><div class="rule-desc">Secrets Manager 자동 로테이션 활성화</div><span class="b-warn">HIGH</span></div>
+    <div class="rule-item"><div class="rule-name">secretsmanager-secret-unused</div><div class="rule-desc">90일 이상 미사용 시크릿 감지</div><span class="b-low">LOW</span></div>
+  </div>
+
+  <h2 class="sec-title">🔧 자동 교정 (Remediation) 3개</h2>
+  <table class="tbl">
+    <thead><tr><th>위반 규칙</th><th>자동 교정 액션</th><th>실행 방식</th></tr></thead>
+    <tbody>
+      <tr><td>rds-instance-public-access</td><td>AWS-DisablePublicAccessForRDSInstance</td><td><span class="b-good">자동</span></td></tr>
+      <tr><td>s3-bucket-public-read-prohibited</td><td>AWS-DisableS3BucketPublicReadWrite</td><td><span class="b-good">자동</span></td></tr>
+      <tr><td>restricted-ssh</td><td>AWS-DisableIncomingSSHForSecurityGroup</td><td><span class="b-low">수동 (오탐 방지)</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 8: EVENTBRIDGE + LOGGING                        -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="mon-event-log">
+  <h1 class="page-title">⚡ EventBridge · Logging</h1>
+  <p class="page-subtitle">이벤트 기반 자동화 · 애플리케이션 로그 표준</p>
+
+  <div class="note">
+    <strong>CloudWatch Alarms와의 차이:</strong> Alarms는 메트릭 수치가 임계값을 넘을 때 알림, EventBridge는 AWS 서비스 이벤트(장애, 배포, 보안 변경) 자체를 감지한다.
+  </div>
+
+  <h2 class="sec-title">⚡ eventbridge.yaml — 인프라 이벤트 (5개)</h2>
+  <table class="tbl">
+    <thead><tr><th>규칙 이름</th><th>감지 이벤트</th><th>대상</th><th>심각도</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">drai-aurora-failover</td><td>RDS DB Cluster Event: failover</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">drai-aurora-storage</td><td>RDS DB Cluster Event: storage</td><td>SNS warning</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">drai-ecs-task-stopped</td><td>ECS Task State Change: STOPPED</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">drai-ecs-deployment-failed</td><td>ECS Deployment: SERVICE_DEPLOYMENT_FAILED</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">drai-secret-rotation-failed</td><td>Secrets Manager: RotationFailed</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">🔐 보안 이벤트 (4개) — CloudTrail 연동</h2>
+  <table class="tbl">
+    <thead><tr><th>규칙 이름</th><th>감지 이벤트</th><th>대상</th><th>심각도</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">drai-root-login</td><td>AWS Console Sign In: Root 계정</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+      <tr><td class="mono">drai-sg-change</td><td>EC2: SG 인바운드 규칙 변경</td><td>SNS warning + Lambda 감사</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">drai-iam-policy-change</td><td>IAM: 정책 생성/수정/삭제</td><td>SNS warning</td><td><span class="b-warn">WARNING</span></td></tr>
+      <tr><td class="mono">drai-s3-policy-change</td><td>S3: 버킷 정책/ACL 변경</td><td>SNS critical</td><td><span class="b-crit">CRITICAL</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">⏰ 스케줄 작업 (2개)</h2>
+  <div class="grid-2">
+    <div class="opt"><div class="opt-label">매일 헬스체크</div><div class="opt-value">cron(0 0 * * ? *)</div><div class="opt-note">UTC 00:00 = KST 09:00<br>Lambda: drai-health-report</div></div>
+    <div class="opt"><div class="opt-label">매주 비용 리포트</div><div class="opt-value">cron(0 0 ? * MON *)</div><div class="opt-note">매주 월요일 KST 09:00<br>Lambda: drai-cost-report</div></div>
+  </div>
+
+  <h2 class="sec-title">📝 logging.yaml — JSON 로그 표준 포맷</h2>
+  <div class="code">{
+  <span class="k">"timestamp"</span>: <span class="s">"2026-05-14T09:15:32.456Z"</span>,   <span class="c">// ISO8601</span>
+  <span class="k">"level"</span>:     <span class="s">"INFO"</span>,                          <span class="c">// DEBUG|INFO|WARNING|ERROR|CRITICAL</span>
+  <span class="k">"service"</span>:   <span class="s">"central-backend"</span>,              <span class="c">// 서비스 이름</span>
+  <span class="k">"trace_id"</span>:  <span class="s">"1-abc123-def456"</span>,              <span class="c">// X-Ray 추적 ID</span>
+  <span class="k">"encounter_id"</span>: <span class="s">"enc-7890"</span>,                <span class="c">// 관련 방문 ID</span>
+  <span class="k">"subject_id"</span>:   <span class="s">"p10001"</span>,                  <span class="c">// MIMIC subject_id</span>
+  <span class="k">"message"</span>:   <span class="s">"Modal inference completed"</span>,
+  <span class="k">"extra"</span>: {
+    <span class="k">"modality"</span>:   <span class="s">"ECG"</span>,
+    <span class="k">"latency_ms"</span>: <span class="n">480</span>,
+    <span class="k">"risk_level"</span>: <span class="s">"critical"</span>
+  }
+}</div>
+
+  <h2 class="sec-title">🛡️ PHI(개인건강정보) 마스킹 규칙</h2>
+  <table class="tbl">
+    <thead><tr><th>필드</th><th>처리 방식</th><th>이유</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">patient_name</td><td><span class="b-crit">mask → ***</span></td><td>환자 이름 노출 방지</td></tr>
+      <tr><td class="mono">patient_id</td><td><span class="b-warn">hash</span></td><td>FHIR Patient ID 해시 처리</td></tr>
+      <tr><td class="mono">password / authorization</td><td><span class="b-crit">redact</span></td><td>인증 정보 완전 제거</td></tr>
+      <tr><td class="mono">raw_response</td><td><span class="b-good">allow</span></td><td>AI 추론 결과는 마스킹 없음 (디버깅 필수)</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="sec-title">⚙️ 서비스별 로그 레벨</h2>
+  <div class="grid-2">
+    <div class="opt green">
+      <div class="opt-label" style="color:#059669">Production</div>
+      <div style="font-size:14px;color:#475569;line-height:2;margin-top:8px">
+        central-backend: <span class="mono">INFO</span><br>
+        hapi-fhir: <span class="mono">WARN</span><br>
+        ecg/cxr/lab-modal: <span class="mono">INFO</span><br>
+        bedrock-agent: <span class="mono">INFO</span>
+      </div>
+    </div>
+    <div class="opt">
+      <div class="opt-label">Development</div>
+      <div style="font-size:14px;color:#475569;line-height:2;margin-top:8px">
+        central-backend: <span class="mono">DEBUG</span><br>
+        hapi-fhir: <span class="mono">INFO</span><br>
+        ecg/cxr/lab-modal: <span class="mono">DEBUG</span><br>
+        bedrock-agent: <span class="mono">DEBUG</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════ -->
+<!-- PAGE 9: COST + DEPLOY                                -->
+<!-- ════════════════════════════════════════════════════ -->
+<div class="page" id="cost">
+  <h1 class="page-title">💰 비용 · 배포</h1>
+  <p class="page-subtitle">서울 리전 ap-northeast-2 기준 월 예상 비용 · 배포 순서 9단계</p>
+
+  <h2 class="sec-title">🗄️ Aurora Serverless v2 비용</h2>
+  <div class="card">
+    <div class="card-header green">
+      <span class="card-title">과금 공식</span>
+      <span class="card-desc">ACU × $0.12/시간 + 스토리지 × $0.10/GB-월</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>사용 패턴</th><th style="text-align:right">월 비용</th></tr></thead>
+        <tbody>
+          <tr class="cost-row"><td>데모 (하루 1~2시간)</td><td class="amount" style="text-align:right">~$4</td></tr>
+          <tr class="cost-row"><td>개발 (하루 8시간)</td><td class="amount" style="text-align:right">~$24</td></tr>
+          <tr class="cost-total"><td>프로덕션 (24시간, Writer + Reader)</td><td class="amount" style="text-align:right">~$273</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="note">💡 데모 시 Reader 인스턴스 제거 → 월 ~$86 절감 가능</div>
+
+  <h2 class="sec-title">📊 모니터링 비용</h2>
+  <div class="card">
+    <div class="card-body" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>서비스</th><th style="text-align:right">데모</th><th style="text-align:right">프로덕션</th></tr></thead>
+        <tbody>
+          <tr class="cost-row"><td>CloudWatch Logs</td><td style="text-align:right">~$3</td><td style="text-align:right">~$20</td></tr>
+          <tr class="cost-row"><td>CloudWatch Alarms (13개)</td><td style="text-align:right">~$1.3</td><td style="text-align:right">~$1.3</td></tr>
+          <tr class="cost-row"><td>CloudWatch Dashboard</td><td style="text-align:right">$3</td><td style="text-align:right">$3</td></tr>
+          <tr class="cost-row"><td>CloudTrail (관리 이벤트)</td><td style="text-align:right">무료</td><td style="text-align:right">무료</td></tr>
+          <tr class="cost-row"><td>CloudTrail (데이터 이벤트)</td><td style="text-align:right">~$1</td><td style="text-align:right">~$5</td></tr>
+          <tr class="cost-row"><td>AWS Config (17개 규칙)</td><td style="text-align:right">~$5</td><td style="text-align:right">~$5</td></tr>
+          <tr class="cost-row"><td>EventBridge + SNS</td><td style="text-align:right">~$0.5</td><td style="text-align:right">~$2</td></tr>
+          <tr class="cost-total"><td>모니터링 합계</td><td class="amount" style="text-align:right">~$14</td><td class="amount" style="text-align:right">~$36</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2 class="sec-title">💵 전체 합산</h2>
+  <div class="card">
+    <div class="card-header yellow">
+      <span class="card-title">총 비용</span>
+      <span class="card-desc">DB + 모니터링 합계</span>
+    </div>
+    <div class="card-body" style="padding:0">
+      <table class="tbl">
+        <thead><tr><th>구성 요소</th><th style="text-align:right">데모/PoC</th><th style="text-align:right">프로덕션 (24시간)</th></tr></thead>
+        <tbody>
+          <tr class="cost-row"><td>Aurora Serverless v2</td><td style="text-align:right">~$4/월</td><td style="text-align:right">~$273/월</td></tr>
+          <tr class="cost-row"><td>모니터링 전체</td><td style="text-align:right">~$14/월</td><td style="text-align:right">~$36/월</td></tr>
+          <tr class="cost-total"><td>총합</td><td class="amount" style="text-align:right;font-size:20px">~$18/월</td><td class="amount" style="text-align:right;font-size:20px">~$309/월</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2 class="sec-title">🚀 배포 순서 9단계</h2>
+  <table class="tbl">
+    <thead><tr><th style="width:80px">단계</th><th>작업</th><th>참고 파일</th></tr></thead>
+    <tbody>
+      <tr><td><span class="b-info">1</span></td><td>Aurora 클러스터 생성</td><td class="mono">aurora-cluster.yaml</td></tr>
+      <tr><td><span class="b-info">2</span></td><td>VPC / Security Group / IAM 설정</td><td class="mono">security.yaml</td></tr>
+      <tr><td><span class="b-info">3</span></td><td>Secrets Manager 시크릿 생성</td><td class="mono">security.yaml</td></tr>
+      <tr><td><span class="b-info">4</span></td><td>DB 초기화 (SQL 001~006 실행)</td><td class="mono">migrations.yaml</td></tr>
+      <tr><td><span class="b-info">5</span></td><td>CloudWatch 로그 그룹 생성</td><td class="mono">cloudwatch.yaml</td></tr>
+      <tr><td><span class="b-info">6</span></td><td>CloudWatch 알람 + SNS 설정</td><td class="mono">alarms.yaml</td></tr>
+      <tr><td><span class="b-info">7</span></td><td>CloudTrail 활성화</td><td class="mono">cloudtrail.yaml</td></tr>
+      <tr><td><span class="b-info">8</span></td><td>AWS Config 활성화</td><td class="mono">aws-config.yaml</td></tr>
+      <tr><td><span class="b-info">9</span></td><td>EventBridge 규칙 생성</td><td class="mono">eventbridge.yaml</td></tr>
+    </tbody>
+  </table>
+
+  <div class="warn" style="margin-top:24px">
+    ⚠️ <strong>주의:</strong> 현재 YAML 파일은 <strong>설계 문서</strong>다. AWS에 자동 배포하려면 CloudFormation 또는 CDK 형식으로 변환이 필요하다.
+  </div>
+</div>
+
+<!-- TAB SWITCH SCRIPT -->
+<script>
+const tabs = document.querySelectorAll('.tab');
+const pages = document.querySelectorAll('.page');
+tabs.forEach(tab => {
+  tab.addEventListener('click', () => {
+    const target = tab.dataset.page;
+    tabs.forEach(t => t.classList.remove('active'));
+    pages.forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById(target).classList.add('active');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+});
+</script>
+
+</body>
+</html>

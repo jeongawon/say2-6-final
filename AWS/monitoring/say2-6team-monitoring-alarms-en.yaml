@@ -46,14 +46,16 @@ Parameters:
 
   CriticalAlertEmail:
     Type: String
-    Default: oncall-team@hospital.co.kr
+    Default: gmtaj123@gmail.com
+    # 기존: oncall-team@hospital.co.kr
     Description: CRITICAL 알람 수신 이메일 (운영팀, 즉시 대응 필요)
     AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
     ConstraintDescription: Must be a valid email.
 
   WarningAlertEmail:
     Type: String
-    Default: dev-team@hospital.co.kr
+    Default: gmtaj123@gmail.com
+    # 기존: dev-team@hospital.co.kr
     Description: WARNING 알람 수신 이메일 (개발팀, 정보성)
     AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
     ConstraintDescription: Must be a valid email.
@@ -61,13 +63,14 @@ Parameters:
   # ── Phase 2 토글 ──────────────────────────────────────────
   EnableEcsAlarms:
     Type: String
-    Default: "false"
+    Default: "true"
+    # Phase 1에서는 "false"로 배포, ECS 스택 배포 후 "true"로 전환
     AllowedValues: ["true", "false"]
     Description: Set true after ECS stack is deployed.
 
   EcsClusterName:
     Type: String
-    Default: "DISABLED"
+    Default: "say2-6team-ecs-cluster"
     MinLength: 1
     Description: ECS 클러스터 이름 (EnableEcsAlarms=true일 때 필수, false면 placeholder OK)
 
@@ -93,23 +96,30 @@ Parameters:
 
   EnableAlbAlarms:
     Type: String
-    Default: "false"
+    Default: "true"
+    # Phase 1에서는 "false"로 배포, ALB 스택 배포 후 "true"로 전환
     AllowedValues: ["true", "false"]
     Description: Set true after ALB stack is deployed.
 
   AlbFullName:
     Type: String
-    Default: "DISABLED"
+    Default: "app/say2-6team-alb/dee3068e41362b1a"
+    # 기존: "DISABLED"
     MinLength: 1
     Description: >
-      ALB 메트릭용 풀네임 (예: "app/say2-6team-alb/abc123...").
-      ALB의 LoadBalancerFullName 출력을 그대로 전달. EnableAlbAlarms=false면 placeholder OK.
+      ALB 메트릭용 풀네임.
+      aws elbv2 describe-load-balancers --names say2-6team-alb 에서
+      LoadBalancerArn의 "loadbalancer/" 이후 부분을 전달.
 
   TargetGroupFullName:
     Type: String
-    Default: "DISABLED"
+    Default: "targetgroup/say2-6team-orchestrator-tg/88a962eade84d2e8"
+    # 기존: "DISABLED"
     MinLength: 1
-    Description: Backend Target Group full name (e.g. "targetgroup/say2-6team-tg/..."). EnableAlbAlarms=false면 placeholder OK.
+    Description: >
+      Backend Target Group full name.
+      aws elbv2 describe-target-groups --names say2-6team-orchestrator-tg 에서
+      TargetGroupArn의 마지막 ":" 이후 부분을 전달.
 
 # ============================================================================
 Conditions:
@@ -703,3 +713,39 @@ Outputs:
       - "aurora=4, ecs=${EcsN}, alb=${AlbN}, modal=2, fhir=1"
       - EcsN: !If [EcsAlarmsEnabled, "12", "0"]
         AlbN: !If [AlbAlarmsEnabled, "4", "0"]
+
+# ============================================================================
+# Deployment Guide - Phase 2 (ECS + ALB alarms 활성화)
+# ============================================================================
+# 1. ALB ARN 및 Target Group 정보 추출:
+#
+#    ALB_ARN=$(aws elbv2 describe-load-balancers \
+#      --names say2-6team-alb \
+#      --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+#
+#    ALB_FULL=$(echo $ALB_ARN | sed 's|.*loadbalancer/||')
+#
+#    TG_FULL=$(aws elbv2 describe-target-groups \
+#      --names say2-6team-orchestrator-tg \
+#      --query 'TargetGroups[0].TargetGroupArn' --output text | sed 's|.*:||')
+#
+# 2. Stack Update 명령:
+#
+#    aws cloudformation update-stack \
+#      --stack-name say2-6team-monitoring-alarms \
+#      --use-previous-template --region ap-northeast-2 \
+#      --parameters \
+#        ParameterKey=EnableEcsAlarms,ParameterValue=true \
+#        ParameterKey=EnableAlbAlarms,ParameterValue=true \
+#        ParameterKey=EcsClusterName,ParameterValue=say2-6team-ecs-cluster \
+#        ParameterKey=AlbFullName,ParameterValue=$ALB_FULL \
+#        ParameterKey=TargetGroupFullName,ParameterValue=$TG_FULL \
+#        ParameterKey=ProjectName,UsePreviousValue=true \
+#        ParameterKey=Environment,UsePreviousValue=true \
+#        ParameterKey=Owner,UsePreviousValue=true \
+#        ParameterKey=OrchestratorServiceName,UsePreviousValue=true \
+#        ParameterKey=EcgSvcServiceName,UsePreviousValue=true \
+#        ParameterKey=CxrSvcServiceName,UsePreviousValue=true \
+#        ParameterKey=LabSvcServiceName,UsePreviousValue=true \
+#        ParameterKey=CriticalAlertEmail,UsePreviousValue=true \
+#        ParameterKey=WarningAlertEmail,UsePreviousValue=true

@@ -1,0 +1,302 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  say2-6team HAPI FHIR DB 초기화 스택.
+  Aurora 클러스터 내에 hapi 데이터베이스 + 전용 사용자(hapi_user)를 생성하고,
+  credential을 별도 Secrets Manager 시크릿으로 저장한다.
+
+  [설계 원칙]
+  - master credential(admin)과 hapi_user credential 완전 분리
+  - HAPI 서버 탈취 시에도 central_db 접근 불가
+  - HAPI 서버는 첫 기동 시 JPA/Hibernate로 스키마 자동 생성 (DDL 불필요)
+
+  [의존]
+  - aurora-stack: 클러스터 ARN, Endpoint, Secret ARN (ImportValue)
+  - security-stack: hapi-sg (이미 정의됨)
+
+  [실행 순서]
+  1. 이 스택 배포 → Lambda가 RDS Data API로 DB/User 생성
+  2. 컴퓨팅 담당이 HAPI EC2 생성 시 say2-6team/hapi-credentials 시크릿 참조
+  3. HAPI 서버 첫 기동 → hapi DB에 자동 스키마 생성
+
+Metadata:
+  Project:
+    Name: say2-6team
+    Purpose: HAPI FHIR 전용 DB + credential 분리 생성
+
+# ============================================================================
+Parameters:
+# ============================================================================
+  ProjectName:
+    Type: String
+    Default: say2-6team
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+
+  Owner:
+    Type: String
+    Default: hkt
+    AllowedValues: [unassigned, wja, lji, hkt, yji]
+
+  HapiDbName:
+    Type: String
+    Default: hapi
+    Description: HAPI FHIR 전용 데이터베이스 이름
+
+  HapiUsername:
+    Type: String
+    Default: hapi_user
+    Description: HAPI DB 전용 사용자 이름
+
+# ============================================================================
+Resources:
+# ============================================================================
+
+  # ─────────────────────────────────────────────────────────────────
+  # 1. HAPI 전용 Secrets Manager 시크릿 (비밀번호 자동 생성)
+  # ─────────────────────────────────────────────────────────────────
+  HapiDbSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/hapi-credentials"
+      Description: "HAPI FHIR DB 전용 credential (master와 분리)"
+      GenerateSecretString:
+        SecretStringTemplate: !Sub |
+          {
+            "username": "${HapiUsername}",
+            "dbname": "${HapiDbName}",
+            "port": "5432"
+          }
+        GenerateStringKey: password
+        PasswordLength: 32
+        ExcludePunctuation: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+  # ─────────────────────────────────────────────────────────────────
+  # 2. Lambda 실행 역할
+  # ─────────────────────────────────────────────────────────────────
+  HapiDbInitLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-hapi-db-init-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: !Sub "${ProjectName}-hapi-db-init-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: RdsDataApi
+                Effect: Allow
+                Action:
+                  - rds-data:ExecuteStatement
+                  - rds-data:BatchExecuteStatement
+                Resource:
+                  Fn::ImportValue: !Sub "${ProjectName}-aurora-cluster-arn"
+              - Sid: ReadMasterSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource:
+                  Fn::ImportValue: !Sub "${ProjectName}-aurora-secret-arn"
+              - Sid: ReadHapiSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref HapiDbSecret
+              - Sid: UpdateHapiSecret
+                Effect: Allow
+                Action:
+                  - secretsmanager:UpdateSecret
+                  - secretsmanager:PutSecretValue
+                Resource: !Ref HapiDbSecret
+              - Sid: DecryptKms
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource:
+                  Fn::ImportValue: !Sub "${ProjectName}-aurora-kms-arn"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 3. Lambda 함수 — DB 생성 + User 생성 + 권한 부여
+  # ─────────────────────────────────────────────────────────────────
+  HapiDbInitFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-hapi-db-init"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 60
+      Role: !GetAtt HapiDbInitLambdaRole.Arn
+      Environment:
+        Variables:
+          CLUSTER_ARN:
+            Fn::ImportValue: !Sub "${ProjectName}-aurora-cluster-arn"
+          MASTER_SECRET_ARN:
+            Fn::ImportValue: !Sub "${ProjectName}-aurora-secret-arn"
+          HAPI_SECRET_ARN: !Ref HapiDbSecret
+          HAPI_DB_NAME: !Ref HapiDbName
+          HAPI_USERNAME: !Ref HapiUsername
+          AURORA_ENDPOINT:
+            Fn::ImportValue: !Sub "${ProjectName}-aurora-endpoint"
+      Code:
+        ZipFile: |
+          import boto3
+          import json
+          import os
+          import cfnresponse
+
+          rds = boto3.client('rds-data')
+          sm = boto3.client('secretsmanager')
+
+          def handler(event, context):
+              if event['RequestType'] == 'Delete':
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+                  return
+
+              cluster_arn = os.environ['CLUSTER_ARN']
+              master_secret_arn = os.environ['MASTER_SECRET_ARN']
+              hapi_secret_arn = os.environ['HAPI_SECRET_ARN']
+              db_name = os.environ['HAPI_DB_NAME']
+              username = os.environ['HAPI_USERNAME']
+              endpoint = os.environ['AURORA_ENDPOINT']
+
+              try:
+                  # hapi secret에서 자동 생성된 비밀번호 읽기
+                  secret_resp = sm.get_secret_value(SecretId=hapi_secret_arn)
+                  secret_data = json.loads(secret_resp['SecretString'])
+                  password = secret_data['password'].replace("'", "''")  # SQL escape
+
+                  # Step 1: CREATE ROLE hapi_user (이미 있으면 GRANT 후 비밀번호 업데이트)
+                  try:
+                      rds.execute_statement(
+                          resourceArn=cluster_arn,
+                          secretArn=master_secret_arn,
+                          database='central_db',
+                          sql=f"CREATE ROLE {username} WITH LOGIN PASSWORD '{password}';"
+                      )
+                  except Exception as e:
+                      if 'already exists' in str(e):
+                          print(f"Role {username} already exists, granting and updating password.")
+                          rds.execute_statement(
+                              resourceArn=cluster_arn,
+                              secretArn=master_secret_arn,
+                              database='central_db',
+                              sql=f"GRANT {username} TO CURRENT_USER;"
+                          )
+                          rds.execute_statement(
+                              resourceArn=cluster_arn,
+                              secretArn=master_secret_arn,
+                              database='central_db',
+                              sql=f"ALTER ROLE {username} WITH PASSWORD '{password}';"
+                          )
+                      else:
+                          raise
+
+                  # Step 2: CREATE DATABASE hapi OWNER hapi_user
+                  try:
+                      rds.execute_statement(
+                          resourceArn=cluster_arn,
+                          secretArn=master_secret_arn,
+                          database='central_db',
+                          sql=f'CREATE DATABASE {db_name} OWNER {username};'
+                      )
+                  except Exception as e:
+                      if 'already exists' in str(e):
+                          print(f"Database {db_name} already exists, skipping.")
+                      else:
+                          raise
+
+                  # Step 3: GRANT ALL ON DATABASE
+                  rds.execute_statement(
+                      resourceArn=cluster_arn,
+                      secretArn=master_secret_arn,
+                      database='central_db',
+                      sql=f'GRANT ALL PRIVILEGES ON DATABASE {db_name} TO {username};'
+                  )
+
+                  # Step 4: GRANT ALL ON SCHEMA public (hapi DB 접속 후)
+                  rds.execute_statement(
+                      resourceArn=cluster_arn,
+                      secretArn=master_secret_arn,
+                      database=db_name,
+                      sql=f'GRANT ALL ON SCHEMA public TO {username};'
+                  )
+
+                  # Step 5: ALTER SCHEMA public OWNER TO hapi_user
+                  rds.execute_statement(
+                      resourceArn=cluster_arn,
+                      secretArn=master_secret_arn,
+                      database=db_name,
+                      sql=f'ALTER SCHEMA public OWNER TO {username};'
+                  )
+
+                  # Step 5: 시크릿에 host 정보 추가
+                  secret_data['host'] = endpoint
+                  sm.put_secret_value(
+                      SecretId=hapi_secret_arn,
+                      SecretString=json.dumps(secret_data)
+                  )
+
+                  cfnresponse.send(event, context, cfnresponse.SUCCESS, {
+                      'Message': f'Database {db_name} and user {username} created successfully.'
+                  })
+
+              except Exception as e:
+                  print(f"Error: {str(e)}")
+                  cfnresponse.send(event, context, cfnresponse.FAILED, {
+                      'Error': str(e)
+                  })
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: project
+          Value: !Sub "pre-${ProjectName}"
+
+  # ─────────────────────────────────────────────────────────────────
+  # 4. Custom Resource — 스택 배포 시 Lambda 자동 실행
+  # ─────────────────────────────────────────────────────────────────
+  HapiDbInitTrigger:
+    Type: Custom::HapiDbInit
+    DependsOn:
+      - HapiDbInitFunction
+      - HapiDbSecret
+    Properties:
+      ServiceToken: !GetAtt HapiDbInitFunction.Arn
+
+# ============================================================================
+Outputs:
+# ============================================================================
+  HapiSecretArn:
+    Description: HAPI FHIR DB credential Secret ARN (컴퓨팅 담당에게 전달)
+    Value: !Ref HapiDbSecret
+    Export:
+      Name: !Sub "${ProjectName}-hapi-secret-arn"
+
+  HapiDbName:
+    Description: HAPI 데이터베이스 이름
+    Value: !Ref HapiDbName
+
+  HapiUsername:
+    Description: HAPI 전용 DB 사용자
+    Value: !Ref HapiUsername

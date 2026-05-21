@@ -31,11 +31,11 @@ function Hero() {
             <span className="mx-2">/</span>
             <Link to="/product" className="hover:text-white">Products</Link>
             <span className="mx-2">/</span>
-            <span className="text-vuno-cyan">say-6 ECG</span>
+            <span className="text-vuno-cyan">EMON ECG</span>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-bold leading-tight text-white">
-            say-6 ECG<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
+            EMON ECG<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
             <span className="text-vuno-cyan">™</span>
           </h1>
 
@@ -43,7 +43,7 @@ function Hero() {
             <div>
               <div className="inline-flex items-center gap-2 text-vuno-cyan font-semibold mb-3">
                 <span className="h-8 w-8 rounded-full border border-vuno-cyan/40 grid place-items-center text-xs">⚡</span>
-                say-6 ECG · DeepECG LVSD
+                EMON ECG · DeepECG LVSD
               </div>
               <p className="text-xl text-white leading-relaxed">
                 12-Lead 심전도에서 좌심실 수축 기능 저하(LVSD)·STEMI·부정맥을
@@ -115,7 +115,7 @@ function DeepEcgScreen() {
     <div className="border border-vuno-border bg-white shadow-2xl overflow-hidden">
       {/* 상단 환자 정보 바 */}
       <div className="bg-slate-700 text-white px-4 py-2 text-xs flex items-center justify-between">
-        <span className="font-bold tracking-wider">say-6 ECG · DeepECG LVSD</span>
+        <span className="font-bold tracking-wider">EMON ECG · DeepECG LVSD</span>
         <span className="text-slate-300 font-numeric">김OO</span>
       </div>
 
@@ -250,7 +250,7 @@ function SpecSection() {
     { label: "감지 패턴",         value: "LVSD · STEMI · NSTEMI · AFib · Brady/Tachy · 전도 장애" },
     { label: "정확도 (AUROC)",   value: "0.92 (MIMIC-IV 검증)" },
     { label: "출력",             value: "JSON + FHIR Observation · 위치 좌표 · 신뢰도(%)" },
-    { label: "통합",             value: "say-6 Orchestrator · HAPI FHIR · S3" },
+    { label: "통합",             value: "EMON Orchestrator · HAPI FHIR · S3" },
     { label: "인증",             value: "혁신의료기기 지정 · CE · 식약처 (Phase 2 예정)" },
   ];
   return (
@@ -291,7 +291,7 @@ function BottomCTA() {
   return (
     <section className="py-20 border-t border-vuno-divider">
       <div className="max-w-[900px] mx-auto px-6 text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-white">say-6 ECG, 직접 사용해보세요</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-white">EMON ECG, 직접 사용해보세요</h2>
         <p className="mt-3 text-vuno-muted">데모 환자 #042 김OO의 ECG 분석 결과를 확인할 수 있습니다.</p>
         <div className="mt-7 flex items-center justify-center gap-3 flex-wrap">
           <Link

@@ -158,7 +158,7 @@ export function ModalityMosaic() {
 
       {/* 우하단 모달 아이콘 줄 (VUNO Med 같은 느낌) */}
       <div className="absolute bottom-2 right-2 flex items-center gap-1.5 px-3 py-2 bg-vuno-bg/80 backdrop-blur border border-vuno-border z-50">
-        <span className="text-[9px] font-bold text-vuno-cyan tracking-[0.2em] uppercase pr-2 border-r border-vuno-border">say-6</span>
+        <span className="text-[9px] font-bold text-vuno-cyan tracking-[0.2em] uppercase pr-2 border-r border-vuno-border">EMON</span>
         <IconChip icon={Activity} />
         <IconChip icon={ImageIcon} />
         <IconChip icon={FlaskConical} />

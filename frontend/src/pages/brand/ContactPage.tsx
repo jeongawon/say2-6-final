@@ -62,17 +62,17 @@ function ContactForm() {
       <div className="max-w-[1100px] mx-auto px-6 grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-10">
         {/* 좌측 */}
         <div>
-          <h2 className="text-2xl font-bold text-white mb-7">say-6 연락처</h2>
+          <h2 className="text-2xl font-bold text-white mb-7">EMON 연락처</h2>
 
           <div className="space-y-5">
             <InfoRow icon={Mail} label="이메일">
-              <a href="mailto:hello@say-6.health" className="text-vuno-cyan hover:underline">
-                hello@say-6.health
+              <a href="mailto:hello@emon-med.health" className="text-vuno-cyan hover:underline">
+                hello@emon-med.health
               </a>
             </InfoRow>
             <InfoRow icon={MessageSquare} label="협력 문의">
-              <a href="mailto:partners@say-6.health" className="text-vuno-cyan hover:underline">
-                partners@say-6.health
+              <a href="mailto:partners@emon-med.health" className="text-vuno-cyan hover:underline">
+                partners@emon-med.health
               </a>
             </InfoRow>
             <InfoRow icon={MapPin} label="사무실">
@@ -216,7 +216,7 @@ function SuccessMessage({ onReset }: { onReset: () => void }) {
       </div>
       <h3 className="text-xl font-bold text-white">문의가 접수되었습니다</h3>
       <p className="text-sm text-vuno-muted mt-2 max-w-sm mx-auto">
-        say-6 팀이 영업일 기준 24시간 내에 회신드리겠습니다.
+        EMON 팀이 영업일 기준 24시간 내에 회신드리겠습니다.
       </p>
       <button
         onClick={onReset}

@@ -29,11 +29,11 @@ function Hero() {
             <span className="mx-2">/</span>
             <Link to="/product" className="hover:text-white">Products</Link>
             <span className="mx-2">/</span>
-            <span className="text-vuno-cyan">say-6 CXR</span>
+            <span className="text-vuno-cyan">EMON CXR</span>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-bold leading-tight text-white">
-            say-6 CXR<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
+            EMON CXR<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
             <span className="text-vuno-cyan">™</span>
           </h1>
 
@@ -41,7 +41,7 @@ function Hero() {
             <div>
               <div className="inline-flex items-center gap-2 text-vuno-cyan font-semibold mb-3">
                 <span className="h-8 w-8 rounded-full border border-vuno-cyan/40 grid place-items-center text-xs">🫁</span>
-                say-6 CXR · Chest X-Ray AI
+                EMON CXR · Chest X-Ray AI
               </div>
               <p className="text-xl text-white leading-relaxed">
                 흉부 X-ray 영상의 주요 비정상 소견 여부와 위치 정보를
@@ -118,10 +118,10 @@ function CxrScreen() {
       {/* 헤더 */}
       <div className="bg-[#142235] px-4 py-2 border-b border-vuno-border flex items-center justify-between text-xs">
         <span className="text-white font-bold tracking-wider">
-          say-6 CXR<sup className="text-vuno-cyan">™</sup> · Chest X-Ray
+          EMON CXR<sup className="text-vuno-cyan">™</sup> · Chest X-Ray
           <span className="ml-3 text-vuno-muted">ver 1.0.0</span>
         </span>
-        <span className="text-vuno-cyan font-bold tracking-wider">say-6</span>
+        <span className="text-vuno-cyan font-bold tracking-wider">EMON</span>
       </div>
 
       <div className="grid grid-cols-[180px_1fr] divide-x divide-vuno-border">
@@ -243,7 +243,7 @@ function SpecSection() {
     { label: "감지 소견",       value: "Consolidation · Nodule · Pneumothorax · Pleural Effusion · Cardiomegaly" },
     { label: "정확도 (AUROC)", value: "0.94 (CheXpert 검증)" },
     { label: "출력",           value: "JSON + 히트맵 PNG + FHIR DocumentReference" },
-    { label: "통합",           value: "say-6 Orchestrator · HAPI FHIR · S3 PACS" },
+    { label: "통합",           value: "EMON Orchestrator · HAPI FHIR · S3 PACS" },
     { label: "인증",           value: "혁신의료기기 지정 · CE · 식약처 (Phase 2 예정)" },
   ];
   return (
@@ -284,7 +284,7 @@ function BottomCTA() {
   return (
     <section className="py-20 border-t border-vuno-divider">
       <div className="max-w-[900px] mx-auto px-6 text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-white">say-6 CXR, 직접 사용해보세요</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-white">EMON CXR, 직접 사용해보세요</h2>
         <p className="mt-3 text-vuno-muted">데모 환자의 CXR 분석 결과를 즉시 확인할 수 있습니다.</p>
         <div className="mt-7 flex items-center justify-center gap-3 flex-wrap">
           <Link

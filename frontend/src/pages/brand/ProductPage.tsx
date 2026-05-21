@@ -27,7 +27,7 @@ const MODALS: ModalSpec[] = [
   {
     key: "ecg",
     num: "01",
-    title: "say-6 ECG",
+    title: "EMON ECG",
     ko: "심전도 12-Lead AI 판독",
     shortDesc: "STEMI · 부정맥 · 전도 장애 분류",
     longDesc: "12-Lead 심전도를 PyTorch 기반 딥러닝 모델로 자동 판독합니다. ST 상승, 부정맥, 전도 장애 등 응급 심혈관 이벤트를 평균 2초 내에 감지하고 신뢰도와 함께 제공합니다.",
@@ -38,7 +38,7 @@ const MODALS: ModalSpec[] = [
   {
     key: "cxr",
     num: "02",
-    title: "say-6 CXR",
+    title: "EMON CXR",
     ko: "흉부 X-ray AI 판독",
     shortDesc: "폐 침윤 · 심비대 · 기흉 분류",
     longDesc: "흉부 X-ray 영상의 주요 비정상 소견 여부와 위치 정보를 ONNX GPU 추론(~3초)으로 제공해 의료진의 판독을 보조합니다. AP/PA 모두 지원.",
@@ -49,7 +49,7 @@ const MODALS: ModalSpec[] = [
   {
     key: "lab",
     num: "03",
-    title: "say-6 LAB",
+    title: "EMON LAB",
     ko: "혈액 검사 AI 위험도 평가",
     shortDesc: "Troponin · CK-MB · WBC 통합 해석",
     longDesc: "Troponin · CK-MB · WBC · CRP 등 응급 검사 항목을 XGBoost 기반 모델로 통합 해석. 시계열 트렌드와 함께 급성 심근경색 · 패혈증 · 신기능 저하 위험을 평가합니다.",
@@ -105,7 +105,7 @@ function SolutionExplorer() {
             응급보조 AI
           </div>
           <h2 className="text-3xl md:text-5xl font-bold text-white leading-tight">
-            say-6 Modality<br />
+            EMON Modality<br />
             <span className="text-vuno-cyan">3종 솔루션</span>
           </h2>
           <p className="mt-5 text-lg text-vuno-muted max-w-2xl">

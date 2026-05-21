@@ -29,11 +29,11 @@ function Hero() {
             <span className="mx-2">/</span>
             <Link to="/product" className="hover:text-white">Products</Link>
             <span className="mx-2">/</span>
-            <span className="text-vuno-cyan">say-6 LAB</span>
+            <span className="text-vuno-cyan">EMON LAB</span>
           </div>
 
           <h1 className="text-4xl md:text-6xl font-bold leading-tight text-white">
-            say-6 LAB<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
+            EMON LAB<sup className="text-vuno-cyan text-2xl md:text-3xl">®</sup>
             <span className="text-vuno-cyan">™</span>
           </h1>
 
@@ -41,7 +41,7 @@ function Hero() {
             <div>
               <div className="inline-flex items-center gap-2 text-vuno-cyan font-semibold mb-3">
                 <span className="h-8 w-8 rounded-full border border-vuno-cyan/40 grid place-items-center text-xs">⚗</span>
-                say-6 LAB · DeepCARS Engine
+                EMON LAB · DeepCARS Engine
               </div>
               <p className="text-xl text-white leading-relaxed">
                 Troponin · CK-MB · WBC · CRP 등 응급 검사 항목을 통합 해석하고,
@@ -113,9 +113,9 @@ function DeepCarsScreen() {
       <div className="bg-vuno-bg px-4 py-2.5 border-b border-vuno-border flex items-center gap-3 text-xs">
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-vuno-cyan/60 bg-vuno-cyan/10">
           <span className="h-1.5 w-1.5 rounded-full bg-vuno-cyan animate-pulse" />
-          <span className="text-[10px] font-bold text-vuno-cyan tracking-wider uppercase">say-6 LAB · DeepCARS</span>
+          <span className="text-[10px] font-bold text-vuno-cyan tracking-wider uppercase">EMON LAB · DeepCARS</span>
         </span>
-        <span className="text-vuno-muted">PID W-0042 · 김OO M/52 · say-6 Score</span>
+        <span className="text-vuno-muted">PID W-0042 · 김OO M/52 · EMON Score</span>
         <span className="ml-auto text-vuno-cyan font-bold font-numeric text-sm">88</span>
       </div>
 
@@ -144,7 +144,7 @@ function FeatureSection() {
   const features = [
     { num: "01", title: "시계열 트렌드 분석", desc: "단일 검사값이 아닌 시간 변화 추이로 패혈증·심근경색 조기 감지." },
     { num: "02", title: "다중 검사 통합 해석", desc: "Troponin · CK-MB · WBC · CRP 등을 통합해 단일 위험도 점수 산출." },
-    { num: "03", title: "say-6 Score",        desc: "0~100점으로 환자 임상 위험도를 표준화. 의료진 의사결정 보조." },
+    { num: "03", title: "EMON Score",        desc: "0~100점으로 환자 임상 위험도를 표준화. 의료진 의사결정 보조." },
     { num: "04", title: "조기 경보",          desc: "Critical 임계값 돌파 시 의사·간호사에게 즉시 알림 (SNS/Push)." },
   ];
   return (
@@ -175,10 +175,10 @@ function SpecSection() {
     { label: "입력 형식",         value: "HL7 v2 · FHIR Observation · CSV" },
     { label: "추론 시간",         value: "평균 0.8초 (AWS Fargate 1vCPU/2GB)" },
     { label: "감지 패턴",         value: "Acute MI · Sepsis · Renal Failure · Hepatic Failure · Anemia" },
-    { label: "say-6 Score 범위",  value: "0–100 (높을수록 위험)" },
+    { label: "EMON Score 범위",  value: "0–100 (높을수록 위험)" },
     { label: "정확도 (AUROC)",   value: "0.91 (MIMIC-IV 검증)" },
     { label: "출력",             value: "JSON + FHIR Observation · 시계열 차트 · 알람" },
-    { label: "통합",             value: "say-6 Orchestrator · HAPI FHIR · CloudWatch · SNS" },
+    { label: "통합",             value: "EMON Orchestrator · HAPI FHIR · CloudWatch · SNS" },
   ];
   return (
     <section className="py-24 bg-vuno-surface/30">
@@ -219,7 +219,7 @@ function BottomCTA() {
   return (
     <section className="py-20 border-t border-vuno-divider">
       <div className="max-w-[900px] mx-auto px-6 text-center">
-        <h2 className="text-3xl md:text-4xl font-bold text-white">say-6 LAB, 직접 사용해보세요</h2>
+        <h2 className="text-3xl md:text-4xl font-bold text-white">EMON LAB, 직접 사용해보세요</h2>
         <p className="mt-3 text-vuno-muted">데모 환자의 LAB 트렌드를 즉시 확인할 수 있습니다.</p>
         <div className="mt-7 flex items-center justify-center gap-3 flex-wrap">
           <Link

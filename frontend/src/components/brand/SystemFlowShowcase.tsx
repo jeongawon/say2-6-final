@@ -3,7 +3,7 @@ import { BrainCircuit, Stethoscope, FileCheck2, Sparkles, Clock, ArrowRight, Arr
 import { Reveal } from "./anim/Reveal";
 
 /**
- * say-6 System Flow — 3단 (좌·중앙·우)
+ * EMON System Flow — 3단 (좌·중앙·우)
  *
  * Stage 01: 간호사 트리아지 (자동입력 애니메이션)
  * Stage 02: Multi-Modal AI — AI 중앙 + 3 모달 비디오 둘러싸기

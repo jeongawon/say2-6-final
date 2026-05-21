@@ -1,5 +1,5 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
-import { Activity, ArrowUpRight, Globe } from "lucide-react";
+import { ArrowUpRight, Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "../../lib/cn";
 
@@ -38,12 +38,18 @@ function BrandHeader({ transparent }: { transparent?: boolean }) {
       )}
     >
       <div className="max-w-[1400px] mx-auto px-6 h-[72px] flex items-center gap-10">
-        {/* 로고 */}
-        <Link to="/" className="inline-flex items-center gap-2.5 font-bold text-xl tracking-tight">
-          <div className="h-9 w-9 rounded-lg bg-vuno-cyan grid place-items-center text-vuno-bg shadow-[0_0_20px_rgba(33,212,212,0.4)]">
-            <Activity className="h-5 w-5" strokeWidth={2.5} />
-          </div>
-          <span className="text-white tracking-wider">SAY<span className="text-vuno-cyan">-</span>6</span>
+        {/* 로고 — mix-blend-mode로 곤색 배경 사이트와 자연스럽게 병합 */}
+        <Link to="/" className="inline-flex items-center gap-3 font-bold text-2xl tracking-tight">
+          <img
+            src="/EMON.jpg"
+            alt="EMON"
+            className="h-11 w-11 object-contain"
+            style={{ mixBlendMode: "screen" }}
+          />
+          <span className="text-white tracking-wider">
+            EMON<span className="text-vuno-cyan"> Med</span>
+            <sup className="text-vuno-cyan text-xs">®</sup>
+          </span>
         </Link>
 
         {/* 메뉴 */}
@@ -54,7 +60,7 @@ function BrandHeader({ transparent }: { transparent?: boolean }) {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  "h-9 px-4 text-sm font-semibold transition-colors flex items-center",
+                  "h-9 px-5 text-xl font-semibold transition-colors flex items-center",
                   isActive
                     ? "text-vuno-cyan"
                     : "text-vuno-muted hover:text-white",
@@ -117,16 +123,22 @@ function BrandFooter() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-10">
           {/* 브랜드 */}
           <div>
-            <Link to="/" className="inline-flex items-center gap-2.5 font-bold text-xl mb-4">
-              <div className="h-8 w-8 rounded-lg bg-vuno-cyan grid place-items-center text-vuno-bg">
-                <Activity className="h-4 w-4" strokeWidth={2.5} />
-              </div>
-              <span className="text-white tracking-wider">SAY<span className="text-vuno-cyan">-</span>6</span>
+            <Link to="/" className="inline-flex items-center gap-2.5 font-bold text-base mb-4">
+              <img
+                src="/EMON.jpg"
+                alt="EMON"
+                className="h-8 w-8 object-contain"
+                style={{ mixBlendMode: "screen" }}
+              />
+              <span className="text-white tracking-wider">
+                EMON<span className="text-vuno-cyan"> Med</span>
+                <sup className="text-vuno-cyan text-xs">®</sup>
+              </span>
             </Link>
             <p className="text-sm text-vuno-muted leading-relaxed">
-              응급실의 AI 인턴<br />
-              심전도·흉부 X-ray·혈액검사를<br />
-              동시에 분석합니다.
+              Emergency Multimodal<br />
+              Orchestrated Network<br />
+              응급 멀티모달 오케스트레이션
             </p>
           </div>
 
@@ -159,7 +171,7 @@ function BrandFooter() {
         </div>
 
         <div className="mt-12 pt-6 border-t border-vuno-divider flex flex-col md:flex-row md:items-center md:justify-between gap-3 text-xs text-vuno-dim">
-          <div>© 2026 say-6. All rights reserved.</div>
+          <div>© 2026 EMON. All rights reserved.</div>
           <div className="flex gap-4">
             <span>v1.0</span>
             <span>·</span>

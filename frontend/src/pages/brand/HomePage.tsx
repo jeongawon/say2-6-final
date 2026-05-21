@@ -6,7 +6,6 @@ import {
 import { BrandShell } from "../../components/brand/BrandShell";
 import { SystemFlowShowcase } from "../../components/brand/SystemFlowShowcase";
 import { Reveal } from "../../components/brand/anim/Reveal";
-import { SplitText } from "../../components/brand/anim/SplitText";
 
 export default function HomePage() {
   return (
@@ -60,36 +59,53 @@ function Hero() {
 
       <div className="relative z-10 max-w-[1400px] mx-auto px-6 py-24 w-full">
         {/* 카피 (단일 컬럼, 좌측 정렬) */}
-        <div className="max-w-3xl">
+        <div className="max-w-5xl">
           <Reveal delay={0}>
             <div className="inline-flex items-center gap-2 px-3 py-1.5 border border-vuno-cyan/50 bg-vuno-cyan/10 backdrop-blur text-xs font-bold text-vuno-cyan mb-8 tracking-[0.15em] uppercase">
               <Sparkles className="h-3.5 w-3.5" />
-              Emergency Multimodal AI · Phase 1
+              EMON Med® Solution
             </div>
           </Reveal>
 
-          {/* SplitText로 글자 하나하나 등장 */}
-          <h1 className="text-5xl md:text-7xl lg:text-[88px] font-bold leading-[1.05] tracking-tight text-white">
-            <SplitText text="응급실의" stagger={50} delay={300} />
-            <span className="text-vuno-cyan">
-              {" "}
-              <SplitText text="AI 인턴" stagger={50} delay={700} />
-            </span>
-            <span>.</span>
-            <br />
-            <SplitText text="3가지 검사를" stagger={45} delay={1100} />
-            <br />
-            <SplitText text="동시에 읽습니다." stagger={45} delay={1500} />
-          </h1>
+          {/* 2줄 전체에 Reveal 1번. inline style로 어떤 CSS 충돌도 우회. */}
+          <Reveal delay={300}>
+            <div
+              role="heading"
+              aria-level={1}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: "12px",
+                fontWeight: 700,
+                lineHeight: 1.2,
+                letterSpacing: "-0.015em",
+                color: "#FFFFFF",
+              }}
+              className="text-3xl md:text-4xl lg:text-[56px]"
+            >
+              <div style={{ whiteSpace: "nowrap" }}>응급의료의 새로운 지평,</div>
+              <div style={{ whiteSpace: "nowrap" }}>
+                <span style={{ color: "#21d4d4" }}>EMON</span>이 통합 지능으로 지휘합니다.
+              </div>
+            </div>
+          </Reveal>
 
-          <Reveal delay={2200} className="mt-10">
-            <p className="text-lg text-slate-200 leading-relaxed max-w-xl drop-shadow">
-              ECG·CXR·LAB을 한 번에 분석하고, 49,743건의 의료 사례를 검색해
-              의사에게 1차 소견을 정리해 올려주는 응급 AI 진단보조 시스템.
+          <Reveal delay={1700} className="mt-8 max-w-2xl">
+            <p className="text-base text-slate-200 leading-relaxed drop-shadow">
+              ECG·CXR·LAB 데이터의 동시 분석을 넘어 6시간 뒤의 예후 예측까지.
+              EMON은 흩어져 있던 응급 데이터를 중앙에서 정교하게 조율하고,
+              49,743건의 대규모 임상 사례를 실시간 대조하여 의사가 즉시 신뢰할
+              수 있는,
+            </p>
+            <p
+              className="text-base text-slate-200 leading-relaxed drop-shadow mt-2"
+              style={{ whiteSpace: "nowrap" }}
+            >
+              완성형 소견서를 제안합니다.
             </p>
           </Reveal>
 
-          <Reveal delay={2500} className="mt-10 flex flex-wrap items-center gap-3">
+          <Reveal delay={2000} className="mt-8 flex flex-wrap items-center gap-3">
             <Link
               to="/demo"
               className="inline-flex items-center gap-2 h-12 px-6 font-bold bg-vuno-cyan text-vuno-bg hover:bg-vuno-cyanGlow transition-colors tracking-wider uppercase text-sm shadow-[0_0_30px_rgba(33,212,212,0.4)]"
@@ -110,7 +126,7 @@ function Hero() {
             </Link>
           </Reveal>
 
-          <Reveal delay={2800} className="mt-12 flex items-center gap-6 text-xs text-slate-300">
+          <Reveal delay={2300} className="mt-10 flex items-center gap-6 text-xs text-slate-300">
             <Cert label="FHIR R4 표준" />
             <Cert label="의료법 5년 감사" />
             <Cert label="AWS Multi-AZ" />
@@ -203,7 +219,7 @@ function ProductPreview() {
         {/* 좌측 — 거대 타이틀 + 설명 + CTA (컬럼 영역 가로 중앙 정렬) */}
         <Reveal className="flex flex-col items-center text-center">
           <h2 className="text-6xl md:text-7xl font-bold text-white leading-[1.05] tracking-tight">
-            say-6<sup className="text-3xl align-super">®</sup><br />
+            EMON<sup className="text-3xl align-super">®</sup><br />
             AI Solution
           </h2>
           <p className="mt-8 text-xl md:text-2xl text-vuno-muted leading-relaxed">

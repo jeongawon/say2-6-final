@@ -48,6 +48,9 @@ dependencies:
   # 종합소견서 본문 마크다운 렌더링 (Bedrock 출력은 `## 헤더 / **굵게** / >인용` 포함)
   flutter_markdown: ^0.7.4
 
+  # 로그인 화면 hero 영상 — assets/videos/hero-video.mp4 재생
+  video_player: ^2.9.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -69,6 +72,9 @@ flutter:
   # included with your application, so that you can use the icons in
   # the material Icons class.
   uses-material-design: true
+
+  assets:
+    - assets/videos/hero-video.mp4
 
   # To add assets to your application, add an assets section, like this:
   # assets:

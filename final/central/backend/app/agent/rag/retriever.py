@@ -1,38 +1,36 @@
 """
-RAG Retriever — Titan v2 임베딩 + ChromaDB 검색 + 다양성 필터링.
+RAG Retriever — rag-svc(별도 ECS 서비스) HTTP API 호출.
 
-원본: https://github.com/jeongawon/say-6-project (feature/rag, scripts/step6_rag_orchestrator.py)
-중앙 통합 시 변경:
-- DB 경로: 환경변수 RAG_DB_PATH (기본 /app/rag_db, Dockerfile에서 박힘)
-- 모델 ID, top_k 등은 환경변수 override 가능
+[배경]
+기존엔 orchestrator 컨테이너 안에 chromadb를 직접 import하고 /app/rag_db/chroma.sqlite3를
+in-process로 조회했음. 팀원이 RAG를 별도 ECS 서비스(say2-6team-rag-svc)로 분리하면서
+orchestrator는 HTTP 호출로 이관.
+
+   orchestrator → POST /query → rag-svc → 내부 chromadb → S3에서 받은 chroma.sqlite3
+                                            ↑ S3 download + chromadb 책임은 rag-svc로
+
+[엔드포인트]
+- ECS production: http://rag-svc.say2-6team.local:8000 (Cloud Map private DNS)
+- 로컬 dev: 환경변수 RAG_API_BASE 미설정 시 자동 fallback (검색 결과 0건 반환)
+
+[graceful degradation]
+- HTTP 5xx / timeout / 네트워크 단절 → 빈 결과 + fallback=True
+- 호출부(report_generator)는 RAG 없이도 일반 임상 지식만으로 소견서 생성 진행
 """
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
-import time
+from typing import Any
 
-import boto3
-import chromadb
-from botocore.exceptions import ClientError
+import httpx
 
 logger = logging.getLogger(__name__)
 
-# ── 설정 (env override 가능) ─────────────────────────────────
-DB_DIR = os.getenv("RAG_DB_PATH", "/app/rag_db")
-COLLECTION_NAME = os.getenv("RAG_COLLECTION", "medical_rag_collection")
-EMBED_MODEL_ID = os.getenv("RAG_EMBED_MODEL", "amazon.titan-embed-text-v2:0")
-EMBED_DIMENSIONS = int(os.getenv("RAG_EMBED_DIM", "512"))
-
-TOP_K_FETCH = int(os.getenv("RAG_TOP_K_FETCH", "20"))
-TOP_K_FINAL = int(os.getenv("RAG_TOP_K_FINAL", "3"))
-MIN_SIMILARITY = float(os.getenv("RAG_MIN_SIMILARITY", "0.15"))
-
-# 임베딩 캐시 — 같은 쿼리 재호출 시 Bedrock 비용/지연 절약
-EMBED_CACHE_ENABLED = os.getenv("EMBED_CACHE_ENABLED", "true").lower() == "true"
-EMBED_CACHE_DIR = os.getenv("EMBED_CACHE_DIR", "/tmp/say6_embed_cache")
+# rag-svc 엔드포인트. ECS Task Definition env로 주입.
+RAG_API_BASE = os.getenv("RAG_API_BASE", "http://rag-svc.say2-6team.local:8000")
+RAG_TIMEOUT_SEC = float(os.getenv("RAG_TIMEOUT_SEC", "5"))
+RAG_TOP_K = int(os.getenv("RAG_TOP_K_FINAL", "3"))
 
 FALLBACK_RESPONSE = (
     "유사한 과거 환자 사례를 찾지 못했습니다. 추가 검사가 필요합니다."
@@ -40,123 +38,71 @@ FALLBACK_RESPONSE = (
 
 
 class Retriever:
-    """ChromaDB 검색 + 다양성 필터링."""
+    """rag-svc HTTP 클라이언트. 인터페이스는 기존 in-process 버전과 동일.
+
+    사용:
+        retriever = Retriever()
+        result = await retriever.search("34세 남성 흉통")
+        # → {"results": [{...}, ...], "fallback": False}
+    """
 
     def __init__(self):
-        self.bedrock = boto3.client("bedrock-runtime")
-        client = chromadb.PersistentClient(path=DB_DIR)
-        self.collection = client.get_collection(name=COLLECTION_NAME)
-        if EMBED_CACHE_ENABLED:
-            os.makedirs(EMBED_CACHE_DIR, exist_ok=True)
-        logger.info(
-            "[rag] Retriever ready: db=%s collection=%s docs=%d cache=%s",
-            DB_DIR, COLLECTION_NAME, self.collection.count(),
-            EMBED_CACHE_DIR if EMBED_CACHE_ENABLED else "disabled",
+        self._client = httpx.AsyncClient(
+            base_url=RAG_API_BASE,
+            timeout=RAG_TIMEOUT_SEC,
         )
+        logger.info("[rag] HTTP Retriever ready: base=%s timeout=%ss", RAG_API_BASE, RAG_TIMEOUT_SEC)
 
-    def _embed(self, text: str) -> list[float]:
-        truncated = text[:8000]
+    async def search(self, query: str) -> dict[str, Any]:
+        """rag-svc /query 호출 → report_generator가 기대하는 형식으로 정규화.
 
-        # 캐시 확인 — MD5 해시로 디스크 파일 lookup
-        cache_path: str | None = None
-        if EMBED_CACHE_ENABLED:
-            cache_key = hashlib.md5(truncated.encode("utf-8")).hexdigest()
-            cache_path = os.path.join(EMBED_CACHE_DIR, f"{cache_key}.json")
-            if os.path.exists(cache_path):
-                try:
-                    with open(cache_path, "r") as f:
-                        return json.load(f)["embedding"]
-                except Exception as e:
-                    logger.warning("[rag] embed cache read fail: %s", e)
-
-        # API 호출
-        body = json.dumps({
-            "inputText": truncated,
-            "dimensions": EMBED_DIMENSIONS,
-        })
-        for attempt in range(1, 4):
-            try:
-                resp = self.bedrock.invoke_model(
-                    modelId=EMBED_MODEL_ID,
-                    contentType="application/json",
-                    accept="application/json",
-                    body=body,
-                )
-                embedding = json.loads(resp["body"].read())["embedding"]
-
-                # 캐시 저장
-                if cache_path is not None:
-                    try:
-                        with open(cache_path, "w") as f:
-                            json.dump({
-                                "text_preview": truncated[:200],
-                                "embedding": embedding,
-                            }, f)
-                    except Exception as e:
-                        logger.warning("[rag] embed cache write fail: %s", e)
-
-                return embedding
-            except ClientError:
-                time.sleep(2 ** attempt)
-        raise RuntimeError("임베딩 API 호출 실패")
-
-    def search(self, query: str) -> dict:
+        report_generator는 다음 형태를 기대:
+            {
+              "results": [
+                {"id": ..., "document": ..., "metadata": {"chunk_type", "hadm_id"}, "similarity": ...},
+                ...
+              ],
+              "fallback": bool
+            }
         """
-        검색 후 다양성 필터링을 적용하여 최종 Top-3를 반환.
-        반환: {"results": [...], "fallback": bool}
-        """
-        query_vec = self._embed(query)
+        try:
+            resp = await self._client.post(
+                "/query",
+                json={"query": query, "top_k": RAG_TOP_K},
+            )
+            resp.raise_for_status()
+            data = resp.json()
 
-        raw = self.collection.query(
-            query_embeddings=[query_vec],
-            n_results=TOP_K_FETCH,
-            include=["documents", "metadatas", "distances"],
-        )
+            # rag-svc 응답 형태에 맞춰 정규화.
+            # ⚠️ 팀원 API 응답 키 이름이 다르면 아래 매핑만 조정하면 됨.
+            raw_results = data.get("results") or data.get("hits") or []
+            results: list[dict[str, Any]] = []
+            for r in raw_results:
+                results.append({
+                    "id": r.get("id") or r.get("hadm_id") or "",
+                    "document": r.get("document") or r.get("text") or "",
+                    "metadata": {
+                        "chunk_type": (r.get("metadata") or {}).get("chunk_type")
+                                       or r.get("chunk_type") or "unknown",
+                        "hadm_id": (r.get("metadata") or {}).get("hadm_id")
+                                    or r.get("hadm_id") or "?",
+                    },
+                    "similarity": r.get("similarity") or r.get("score") or 0,
+                })
 
-        # cosine distance → similarity 변환
-        candidates = []
-        for i in range(len(raw["ids"][0])):
-            similarity = 1 - raw["distances"][0][i]
-            candidates.append({
-                "id": raw["ids"][0][i],
-                "document": raw["documents"][0][i],
-                "metadata": raw["metadatas"][0][i],
-                "similarity": round(similarity, 4),
-            })
+            logger.info("[rag] HTTP search hit %d results (query_len=%d)", len(results), len(query))
+            return {"results": results, "fallback": not results}
 
-        # fallback 체크: 최고 유사도가 기준 미달
-        if not candidates or candidates[0]["similarity"] < MIN_SIMILARITY:
-            logger.info("[rag] fallback (top similarity < %.2f)", MIN_SIMILARITY)
+        except httpx.TimeoutException:
+            logger.warning("[rag] timeout — fallback (base=%s)", RAG_API_BASE)
+            return {"results": [], "fallback": True}
+        except httpx.HTTPStatusError as e:
+            logger.warning("[rag] HTTP %d — fallback: %s", e.response.status_code, e.response.text[:200])
+            return {"results": [], "fallback": True}
+        except Exception as e:
+            logger.warning("[rag] 호출 실패 — fallback: %s: %s", type(e).__name__, e)
             return {"results": [], "fallback": True}
 
-        # 다양성 필터링: discharge 최소 1 + radiology 최소 1
-        selected = self._diversity_filter(candidates)
-
-        logger.info(
-            "[rag] search hit %d candidates → top %d (avg sim=%.3f)",
-            len(candidates), len(selected),
-            sum(s["similarity"] for s in selected) / max(len(selected), 1),
-        )
-        return {"results": selected, "fallback": False}
-
-    @staticmethod
-    def _diversity_filter(candidates: list[dict]) -> list[dict]:
-        """discharge와 radiology를 각각 최소 1건 포함하여 Top-3 선정."""
-        discharge = [c for c in candidates if c["metadata"].get("chunk_type") == "discharge_summary"]
-        radiology = [c for c in candidates if c["metadata"].get("chunk_type") == "radiology"]
-
-        selected: list[dict] = []
-        if discharge:
-            selected.append(discharge[0])
-        if radiology:
-            selected.append(radiology[0])
-
-        selected_ids = {s["id"] for s in selected}
-        for c in candidates:
-            if len(selected) >= TOP_K_FINAL:
-                break
-            if c["id"] not in selected_ids:
-                selected.append(c)
-
-        selected.sort(key=lambda x: x["similarity"], reverse=True)
-        return selected[:TOP_K_FINAL]
+    async def aclose(self) -> None:
+        """앱 shutdown 시 호출 — HTTP 클라이언트 cleanup."""
+        await self._client.aclose()

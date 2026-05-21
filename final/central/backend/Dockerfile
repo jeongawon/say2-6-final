@@ -15,10 +15,9 @@ COPY app/ ./app/
 # CC map (.parquet) — ML 결정 엔진의 prior 데이터
 COPY data/ /app/data/
 
-# RAG ChromaDB 데이터 (49,743건 MIMIC 노트 임베딩)
-# S3 zip(s3://say2-6team/jeongin/note_rag.zip)에서 받아 backend/rag_db/에 풀어둠.
-# 빌드 시 이미지에 박혀 컨테이너 어디서 띄우든 /app/rag_db에서 자동 로드.
-COPY rag_db/ /app/rag_db/
+# RAG ChromaDB는 별도 ECS 서비스 say2-6team-rag-svc로 분리.
+# orchestrator는 HTTP POST → http://rag-svc.say2-6team.local:8000/query 호출.
+# in-image rag_db/ 357MB 제거 → 이미지 크기 대폭 감량.
 
 EXPOSE 8000
 

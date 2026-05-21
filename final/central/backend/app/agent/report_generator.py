@@ -227,7 +227,7 @@ async def generate_integrated_report(encounter_id: str) -> dict[str, Any]:
     rag = _get_retriever()
     if rag is not None:
         try:
-            search = rag.search(rag_query)
+            search = await rag.search(rag_query)
             if not search.get("fallback"):
                 similar_cases = search.get("results", [])
             logger.info(

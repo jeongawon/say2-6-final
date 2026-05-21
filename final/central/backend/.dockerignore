@@ -1,0 +1,39 @@
+# 빌드 컨텍스트에서 제외 — 빌드 속도 + 이미지 크기 최적화
+
+# RAG 데이터는 별도 rag-svc로 분리됨 (357MB)
+rag_db/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+
+# 로컬 dev/IDE
+.venv/
+venv/
+.env
+.env.local
+.vscode/
+.idea/
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# 테스트·도큐
+tests/
+*.test.py
+test_*.py
+README*.md
+docs/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Firebase service account (런타임에 마운트, 빌드엔 불필요)
+fcm-sa.json

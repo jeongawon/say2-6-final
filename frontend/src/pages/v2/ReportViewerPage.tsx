@@ -40,26 +40,26 @@ export default function ReportViewerPage() {
 
   if (!patient) {
     return (
-      <div className="min-h-screen flex items-center justify-center text-slate-500">
+      <div className="min-h-screen flex items-center justify-center text-slate-500 dark:text-vuno-muted dark:bg-vuno-bg">
         환자를 찾을 수 없습니다.
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-slate-200">
+    <div className="min-h-screen bg-slate-200 dark:bg-vuno-bg">
       {/* 얇은 상단 바 — 인쇄/닫기 (print 시 자동 숨김) */}
-      <header className="print:hidden sticky top-0 z-10 bg-[#0A1929] text-white border-b border-vuno-cyan/30">
+      <header className="print:hidden sticky top-0 z-10 bg-gradient-to-r from-brand-700 via-brand-600 to-ai-accent text-white shadow-md shadow-brand-900/10">
         <div className="max-w-[1100px] mx-auto px-5 h-12 flex items-center gap-3">
           <button
             onClick={() => nav(-1)}
-            className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold text-white/80 hover:bg-white/10"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold text-white/85 hover:bg-white/10 transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> 뒤로
           </button>
-          <div className="text-[13px] font-bold tracking-wider">
-            소견서 뷰어 · <span className="text-vuno-cyan">{patient.name}</span>
-            <span className="ml-2 text-[10px] uppercase text-vuno-cyan/70 tracking-[0.2em]">
+          <div className="text-[13px] font-bold tracking-wide">
+            소견서 뷰어 · <span className="font-extrabold">{patient.name}</span>
+            <span className="ml-2 text-[10px] uppercase text-white/70 tracking-[0.2em]">
               {status === "signed" ? "Signed" : status === "reviewed" ? "Reviewed" : "Preliminary"}
             </span>
           </div>
@@ -67,14 +67,14 @@ export default function ReportViewerPage() {
             <button
               onClick={() => window.print()}
               title="인쇄 / PDF 저장"
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-bold bg-vuno-cyan text-vuno-bg hover:brightness-110"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-bold bg-white text-brand-700 hover:bg-white/90 transition-colors"
             >
               <Printer className="h-3.5 w-3.5" /> 인쇄
             </button>
             <button
               onClick={() => nav("/demo/reports")}
               title="종합소견서 목록"
-              className="inline-flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold text-white/80 hover:bg-white/10"
+              className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-[12px] font-semibold text-white/85 hover:bg-white/10 transition-colors"
             >
               <X className="h-3.5 w-3.5" /> 닫기
             </button>

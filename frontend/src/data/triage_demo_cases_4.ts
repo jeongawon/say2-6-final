@@ -44,7 +44,7 @@ export const DEMO_CASES_4: DemoCasePatient[] = [
 
     id: "P-19041043",
     mrn: "19041043",
-    name: "원○○",
+    name: "원정아",
     age: 30,
     sex: "M",
     arrived_at: `${TODAY}T08:30:00`,
@@ -76,7 +76,7 @@ export const DEMO_CASES_4: DemoCasePatient[] = [
 
     id: "P-13715870",
     mrn: "13715870",
-    name: "홍○○",
+    name: "홍경태",
     age: 73,
     sex: "M",
     arrived_at: `${TODAY}T08:45:00`,
@@ -108,7 +108,7 @@ export const DEMO_CASES_4: DemoCasePatient[] = [
 
     id: "P-15638163",
     mrn: "15638163",
-    name: "이○○",
+    name: "이정인",
     age: 34,
     sex: "M",
     arrived_at: `${TODAY}T09:00:00`,
@@ -141,7 +141,7 @@ export const DEMO_CASES_4: DemoCasePatient[] = [
 
     id: "P-18230098",
     mrn: "18230098",
-    name: "양○○",
+    name: "양정인",
     age: 86,
     sex: "F",
     arrived_at: `${TODAY}T09:15:00`,

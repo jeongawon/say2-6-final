@@ -21,6 +21,7 @@ import V2LoginPage from "./pages/v2/LoginPage";
 import V2AuthCallbackPage from "./pages/v2/AuthCallbackPage";
 import V2WorklistPage from "./pages/v2/WorklistPage";
 import V2PatientDetailPage from "./pages/v2/PatientDetailPage";
+import V2PatientResultsPage from "./pages/v2/PatientResultsPage";
 import V2ReportEditorPage from "./pages/v2/ReportEditorPage";
 import V2ReportViewerPage from "./pages/v2/ReportViewerPage";
 import V2TriagePage from "./pages/v2/TriagePage";
@@ -83,6 +84,9 @@ export default function App() {
         } />
         <Route path="/demo/patient/:id" element={
           <V2RequireAuth><V2PatientDetailPage /></V2RequireAuth>
+        } />
+        <Route path="/demo/patient/:id/results" element={
+          <V2RequireAuth><V2PatientResultsPage /></V2RequireAuth>
         } />
         <Route path="/demo/patient/:id/report" element={
           <V2RequireAuth roles={["doctor"]}><V2ReportEditorPage /></V2RequireAuth>

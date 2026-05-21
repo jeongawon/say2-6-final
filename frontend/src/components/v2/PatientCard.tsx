@@ -30,7 +30,7 @@ interface PatientCardProps {
 }
 
 const STATUS_ICONS = {
-  pending: { Icon: Loader2,       className: "text-slate-300" },
+  pending: { Icon: Loader2,       className: "text-slate-300 dark:text-vuno-dim" },
   running: { Icon: Loader2,       className: "text-brand-500 animate-spin" },
   done:    { Icon: CheckCircle2,  className: "text-emerald-500" },
 };
@@ -38,9 +38,9 @@ const STATUS_ICONS = {
 function ModalityChip({ label, status, Icon }: { label: string; status: "pending" | "running" | "done"; Icon: typeof Activity }) {
   const s = STATUS_ICONS[status];
   return (
-    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 border border-slate-100">
-      <Icon className="h-3.5 w-3.5 text-slate-500" />
-      <span className="text-xs font-medium text-slate-700">{label}</span>
+    <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-slate-50 dark:bg-vuno-bg border border-slate-100 dark:border-vuno-divider">
+      <Icon className="h-3.5 w-3.5 text-slate-500 dark:text-vuno-muted" />
+      <span className="text-xs font-medium text-slate-700 dark:text-slate-200">{label}</span>
       <s.Icon className={cn("h-3.5 w-3.5 ml-auto", s.className)} />
     </div>
   );
@@ -81,18 +81,18 @@ export function PatientCard({ data, onClick }: PatientCardProps) {
           <div className="min-w-0">
             <div className="flex items-center gap-2 mb-1">
               <KtasBadge level={data.ktas} size="sm" />
-              <span className="font-numeric text-xs text-slate-500">#{data.id}</span>
+              <span className="font-numeric text-xs text-slate-500 dark:text-vuno-muted">#{data.id}</span>
             </div>
-            <h3 className="text-base font-semibold text-slate-900 truncate">
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">
               {data.name}
-              <span className="ml-2 text-sm font-normal text-slate-500">
+              <span className="ml-2 text-sm font-normal text-slate-500 dark:text-vuno-muted">
                 {data.sex}/{data.age}
               </span>
             </h3>
-            <p className="text-sm text-slate-600 truncate mt-0.5">{data.chief}</p>
+            <p className="text-sm text-slate-600 dark:text-vuno-muted truncate mt-0.5">{data.chief}</p>
           </div>
         </div>
-        <div className="mt-2 text-xs text-slate-400 font-numeric">
+        <div className="mt-2 text-xs text-slate-400 dark:text-vuno-dim font-numeric">
           {elapsed}분 경과 · {new Date(data.registeredAt).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} 등록
         </div>
       </CardHeader>
@@ -100,7 +100,7 @@ export function PatientCard({ data, onClick }: PatientCardProps) {
       <CardBody className="space-y-3">
         {/* 검사 진행 */}
         <div>
-          <div className="text-xs font-medium text-slate-500 mb-1.5">검사 진행</div>
+          <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted mb-1.5">검사 진행</div>
           <div className="grid grid-cols-3 gap-1.5">
             <ModalityChip label="ECG" status={data.ecg} Icon={Activity} />
             <ModalityChip label="CXR" status={data.cxr} Icon={ImageIcon} />
@@ -109,32 +109,32 @@ export function PatientCard({ data, onClick }: PatientCardProps) {
         </div>
 
         {/* AI 판정 */}
-        <div className="rounded-lg bg-ai-bg border border-ai-border px-3 py-2.5">
+        <div className="rounded-lg bg-ai-bg dark:bg-violet-500/15 border border-ai-border dark:border-violet-500/40 px-3 py-2.5">
           <div className="flex items-center gap-1.5 mb-1.5">
-            <Sparkles className="h-3.5 w-3.5 text-brand-600" />
-            <span className="text-xs font-semibold text-brand-700">AI 판정</span>
+            <Sparkles className="h-3.5 w-3.5 text-brand-600 dark:text-violet-300" />
+            <span className="text-xs font-semibold text-brand-700 dark:text-violet-300">AI 판정</span>
           </div>
           {data.aiStatus === "analyzing" ? (
-            <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-vuno-muted">
               <Loader2 className="h-3 w-3 animate-spin" />
               분석 중…
             </div>
           ) : data.aiVerdict ? (
             <div className="space-y-1.5">
               <RiskBadge level={data.aiVerdict.risk} size="sm" />
-              <p className="text-xs text-slate-700 leading-snug line-clamp-2">{data.aiVerdict.summary}</p>
+              <p className="text-xs text-slate-700 dark:text-slate-200 leading-snug line-clamp-2">{data.aiVerdict.summary}</p>
             </div>
           ) : (
-            <span className="text-xs text-slate-400">대기 중</span>
+            <span className="text-xs text-slate-400 dark:text-vuno-dim">대기 중</span>
           )}
         </div>
       </CardBody>
 
-      <div className="px-5 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-        <span className="text-xs text-slate-500">
+      <div className="px-5 py-3 bg-slate-50 dark:bg-vuno-bg border-t border-slate-100 dark:border-vuno-divider flex items-center justify-between">
+        <span className="text-xs text-slate-500 dark:text-vuno-muted">
           {data.awaitingSign ? "📝 서명 대기" : data.aiStatus === "done" ? "검토 가능" : "분석 중"}
         </span>
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-700">
+        <span className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 dark:text-brand-300">
           {data.awaitingSign ? "서명" : "검토"}
           <ChevronRight className="h-3.5 w-3.5" />
         </span>

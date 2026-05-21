@@ -134,58 +134,58 @@ export function EcgClinicalSheet({
     });
 
   return (
-    <div className="bg-white text-[10px] font-mono leading-tight">
+    <div className="bg-white dark:bg-vuno-surface dark:text-white text-[10px] font-mono leading-tight">
       {/* ── 헤더 (환자 + 측정값) ─────────────────────── */}
-      <div className="border-b border-slate-400 px-3 py-2">
+      <div className="border-b border-slate-400 dark:border-vuno-border px-3 py-2">
         <div className="grid grid-cols-[1.4fr_1fr_auto] gap-4">
           {/* 좌: 환자 정보 */}
           <div className="space-y-0.5">
             <div className="grid grid-cols-[60px_1fr]">
-              <span className="text-slate-500">ID:</span>
+              <span className="text-slate-500 dark:text-vuno-muted">ID:</span>
               <span className="font-bold">{patientId}</span>
             </div>
             <div className="grid grid-cols-[60px_1fr]">
-              <span className="text-slate-500">Name:</span>
+              <span className="text-slate-500 dark:text-vuno-muted">Name:</span>
               <span>{patientName}</span>
             </div>
             <div className="grid grid-cols-[60px_1fr]">
-              <span className="text-slate-500">SEX/AGE:</span>
+              <span className="text-slate-500 dark:text-vuno-muted">SEX/AGE:</span>
               <span>{sexLabel} · {age}세</span>
             </div>
             <div className="grid grid-cols-[60px_1fr]">
-              <span className="text-slate-500">Medication:</span>
-              <span className="text-slate-400">None</span>
+              <span className="text-slate-500 dark:text-vuno-muted">Medication:</span>
+              <span className="text-slate-400 dark:text-vuno-dim">None</span>
             </div>
           </div>
           {/* 중: 측정값 */}
           <div className="space-y-0.5">
             <div className="grid grid-cols-[80px_1fr]">
-              <span className="text-slate-500">Heart Rate</span>
+              <span className="text-slate-500 dark:text-vuno-muted">Heart Rate</span>
               <span className="font-bold">{hr} bpm</span>
             </div>
             <div className="grid grid-cols-[80px_1fr]">
-              <span className="text-slate-500">PR Int.</span>
+              <span className="text-slate-500 dark:text-vuno-muted">PR Int.</span>
               <span>{prInterval} ms</span>
             </div>
             <div className="grid grid-cols-[80px_1fr]">
-              <span className="text-slate-500">QRS Int.</span>
+              <span className="text-slate-500 dark:text-vuno-muted">QRS Int.</span>
               <span>{qrsWidth} ms</span>
             </div>
             <div className="grid grid-cols-[80px_1fr]">
-              <span className="text-slate-500">QT/QTc</span>
+              <span className="text-slate-500 dark:text-vuno-muted">QT/QTc</span>
               <span>{qt} / {qtc} ms</span>
             </div>
             <div className="grid grid-cols-[80px_1fr]">
-              <span className="text-slate-500">P/QRS axis</span>
+              <span className="text-slate-500 dark:text-vuno-muted">P/QRS axis</span>
               <span>{pAxis}° / {qrsAxis}°</span>
             </div>
           </div>
           {/* 우: 메타 + 일시 */}
           <div className="text-right space-y-0.5">
             <div>10mm/mV  25mm/s</div>
-            <div className="text-slate-500">{ts}</div>
-            <div className="text-slate-500">Minnesota (03-05)</div>
-            <div className="text-slate-500">say-6 DeepECG v1.2</div>
+            <div className="text-slate-500 dark:text-vuno-muted">{ts}</div>
+            <div className="text-slate-500 dark:text-vuno-muted">Minnesota (03-05)</div>
+            <div className="text-slate-500 dark:text-vuno-muted">say-6 DeepECG v1.2</div>
           </div>
         </div>
       </div>
@@ -265,7 +265,7 @@ export function EcgClinicalSheet({
       <div className="px-3 pb-1 space-y-0.5">
         {interp.map((it) => (
           <div key={it.code} className="flex gap-3">
-            <span className="text-slate-500 w-12">{it.code}</span>
+            <span className="text-slate-500 dark:text-vuno-muted w-12">{it.code}</span>
             <span className={it.text.includes("*") ? "font-bold" : ""}>{it.text}</span>
           </div>
         ))}
@@ -311,7 +311,7 @@ export function EcgClinicalSheet({
       </div>
 
       {/* 푸터 */}
-      <div className="border-t border-slate-200 px-3 py-1 text-[9px] text-slate-400 flex justify-between">
+      <div className="border-t border-slate-200 dark:border-vuno-border px-3 py-1 text-[9px] text-slate-400 dark:text-vuno-dim flex justify-between">
         <span>1350K · say-6 응급실 멀티모달 AI 진단 보조</span>
         <span>v1.2</span>
       </div>

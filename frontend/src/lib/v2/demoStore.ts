@@ -37,7 +37,7 @@ function nowMinus(min: number): string {
 const SHOWCASE_PATIENTS: DemoPatient[] = [
   {
     id: "042",
-    name: "김OO",
+    name: "김재현",
     age: 52,
     sex: "M",
     ktas: 2,
@@ -72,7 +72,7 @@ const SHOWCASE_PATIENTS: DemoPatient[] = [
   },
   {
     id: "041",
-    name: "이OO",
+    name: "이수진",
     age: 34,
     sex: "F",
     ktas: 3,
@@ -85,7 +85,7 @@ const SHOWCASE_PATIENTS: DemoPatient[] = [
   },
   {
     id: "040",
-    name: "박OO",
+    name: "박준영",
     age: 67,
     sex: "M",
     ktas: 4,
@@ -118,7 +118,7 @@ const SHOWCASE_PATIENTS: DemoPatient[] = [
   },
   {
     id: "039",
-    name: "정OO",
+    name: "정은지",
     age: 28,
     sex: "F",
     ktas: 4,
@@ -149,7 +149,7 @@ const SHOWCASE_PATIENTS: DemoPatient[] = [
   },
   {
     id: "038",
-    name: "최OO",
+    name: "최성훈",
     age: 45,
     sex: "M",
     ktas: 5,
@@ -197,8 +197,8 @@ const CASE_RECOMMENDATIONS: Record<string, AIRecommendation> = {
     diagnosis: "신규 발현 심방세동 (Atrial Fibrillation, NEW)",
     confidence: 0.61,
     reasons: [
-      "ECG: 심방세동/조동 패턴 감지 (신뢰도 61%)",
-      "심박수 114회/분 빈맥 + 불규칙 리듬",
+      "ECG: 심방세동/조동 패턴 감지 (신뢰도 61%) — 심박수 114회/분 빈맥 + 불규칙 리듬",
+      "CXR: 심비대·폐부종 소견 없음, 폐야 깨끗 — 구조적 심질환 동반 소견 없음",
       "발병 약 90분 — 48시간 이내 율동전환 가능 시점",
       "혈역학 안정 (SBP 129 mmHg, SpO₂ 100%, GCS 15)",
     ],

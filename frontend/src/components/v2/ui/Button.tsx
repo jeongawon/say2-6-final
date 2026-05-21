@@ -12,9 +12,9 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:   "bg-brand-600 text-white hover:bg-brand-700 active:bg-brand-800 shadow-sm",
-  secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300",
-  outline:   "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 active:bg-slate-100",
-  ghost:     "text-slate-700 hover:bg-slate-100 active:bg-slate-200",
+  secondary: "bg-slate-100 text-slate-900 hover:bg-slate-200 active:bg-slate-300 dark:bg-vuno-elevated dark:text-white dark:hover:bg-vuno-border",
+  outline:   "border border-slate-300 bg-white text-slate-900 hover:bg-slate-50 active:bg-slate-100 dark:border-vuno-border dark:bg-vuno-surface dark:text-white dark:hover:bg-vuno-elevated",
+  ghost:     "text-slate-700 hover:bg-slate-100 active:bg-slate-200 dark:text-slate-200 dark:hover:bg-vuno-elevated",
   danger:    "bg-critical text-white hover:bg-red-700 active:bg-red-800 shadow-sm",
   ai:        "bg-gradient-to-r from-brand-600 to-ai-accent text-white hover:opacity-90 shadow-ai",
 };

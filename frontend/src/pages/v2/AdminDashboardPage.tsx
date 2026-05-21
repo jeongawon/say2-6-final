@@ -1,246 +1,318 @@
-import { useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
 import {
-  Users, Activity, ClipboardCheck, AlertTriangle, Clock, Bell, ChevronRight,
+  ResponsiveContainer, AreaChart, Area, LineChart, Line, BarChart, Bar, Cell,
+  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
+} from "recharts";
+import {
+  Activity, Server, Database, AlertTriangle, CheckCircle2, ShieldCheck,
+  Network, Boxes, RefreshCw, Cpu, Gauge, Brain,
 } from "lucide-react";
 import { AppShell } from "../../components/v2/AppShell";
-import { getAllPatients, isLivePatient, type DemoPatient } from "../../lib/v2/demoStore";
-import { KTAS_META, type KTAS } from "../../types/triage";
 import { cn } from "../../lib/cn";
 
 /* ─────────────────────────────────────────────────────────
-   say-6 검진 현황 대시보드 — 행정팀용 모니터링
-   응급실 운영 현황 · 알림 · 활동 로그
+   검진현황 → AWS 인프라 운영 모니터링 대시보드 (목업)
+   monitoring-alarms-stack.yaml(알람 23개) 기준 시각화.
+   배포 후 백엔드 /ops/alarms · /ops/metrics(CloudWatch) 연결 예정.
    ───────────────────────────────────────────────────────── */
 
-interface LogEntry {
-  at: string;
-  patient: DemoPatient;
-  kind: "register" | "ai_done" | "await_sign" | "analyzing";
-  text: string;
+const C = {
+  indigo: "#6366f1", violet: "#8b5cf6", emerald: "#10b981",
+  amber: "#f59e0b", red: "#ef4444", blue: "#3b82f6", slate: "#94a3b8",
+};
+const AXIS = { fontSize: 10, fill: C.slate };
+const GRID = "#94a3b8";
+const TOOLTIP = {
+  contentStyle: { background: "#0f172a", border: "none", borderRadius: 8, fontSize: 11, padding: "6px 10px" },
+  labelStyle: { color: "#cbd5e1", fontSize: 10 },
+  itemStyle: { color: "#fff" },
+};
+
+/* 목업 시계열 생성 — base 주변 노이즈 + 옵션 트렌드 */
+function mkSeries(points: number, base: number, amp: number, seed: number, opts?: { min?: number; max?: number; trend?: number }) {
+  const now = Date.now();
+  const out: { t: string; v: number }[] = [];
+  for (let i = points - 1; i >= 0; i--) {
+    const d = new Date(now - i * 5 * 60_000);
+    const label = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    const r = Math.sin((i + seed) / 2.3) * amp * 0.4 + (pseudo(i + seed) - 0.5) * amp;
+    let v = base + r + (opts?.trend ? (points - i) * opts.trend : 0);
+    if (opts?.min != null) v = Math.max(opts.min, v);
+    if (opts?.max != null) v = Math.min(opts.max, v);
+    out.push({ t: label, v: Math.round(v * 10) / 10 });
+  }
+  return out;
 }
+function pseudo(n: number) { const x = Math.sin(n * 99.13) * 43758.5453; return x - Math.floor(x); }
+const last = (s: { v: number }[]) => s[s.length - 1]?.v ?? 0;
+
+type Sev = "critical" | "warning";
+interface Alarm { sev: Sev; name: string; metric: string; value: string; threshold: string; since: string; }
 
 export default function AdminDashboardPage() {
-  const nav = useNavigate();
-  const patients = getAllPatients();
+  const [seed, setSeed] = useState(0);
+  const [updatedAt, setUpdatedAt] = useState(() => new Date());
 
-  const stats = useMemo(() => {
-    const ktasDist: Record<KTAS, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-    let critical = 0, analyzing = 0, done = 0, awaitingSign = 0;
-    for (const p of patients) {
-      ktasDist[p.ktas] = (ktasDist[p.ktas] ?? 0) + 1;
-      if (p.aiVerdict?.risk === "critical" || p.ktas <= 2) critical += 1;
-      if (p.aiStatus === "analyzing") analyzing += 1;
-      if (p.aiStatus === "done") done += 1;
-      if (p.awaitingSign) awaitingSign += 1;
-    }
-    return { total: patients.length, ktasDist, critical, analyzing, done, awaitingSign };
-  }, [patients]);
+  // 30초 자동 갱신 (목업 — 실제론 CloudWatch 폴링)
+  useEffect(() => {
+    const id = window.setInterval(() => { setSeed((s) => s + 1); setUpdatedAt(new Date()); }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
-  // 알림 — 위급 환자 + 미서명 소견서
-  const alerts = useMemo(() => {
-    const criticalPts = patients.filter((p) => p.aiVerdict?.risk === "critical" || p.ktas <= 2);
-    const unsigned = patients.filter((p) => p.awaitingSign);
-    return { criticalPts, unsigned };
-  }, [patients]);
+  const d = useMemo(() => {
+    // ECS 4개 서비스
+    const services = [
+      { key: "orchestrator", label: "AI 에이전트", tasks: "2/2", cpu: mkSeries(24, 58, 22, seed, { min: 5, max: 99 }), mem: mkSeries(24, 64, 16, seed + 5, { min: 5, max: 99 }) },
+      { key: "ecg", label: "ECG 추론", tasks: "1/1", cpu: mkSeries(24, 41, 30, seed + 2, { min: 3, max: 99 }), mem: mkSeries(24, 55, 18, seed + 7, { min: 5, max: 99 }) },
+      { key: "cxr", label: "CXR 추론", tasks: "1/1", cpu: mkSeries(24, 49, 28, seed + 3, { min: 3, max: 99 }), mem: mkSeries(24, 70, 14, seed + 8, { min: 5, max: 99 }) },
+      { key: "lab", label: "LAB 추론", tasks: "1/1", cpu: mkSeries(24, 22, 14, seed + 4, { min: 2, max: 99 }), mem: mkSeries(24, 38, 12, seed + 9, { min: 5, max: 99 }) },
+    ];
+    // ALB
+    const albReq = mkSeries(24, 320, 120, seed + 11, { min: 0 });
+    const alb5xx = mkSeries(24, 2, 4, seed + 12, { min: 0 }).map((p) => ({ ...p, elb: Math.max(0, Math.round(p.v)), tgt: Math.max(0, Math.round(pseudo(p.v + seed) * 3)) }));
+    const albLat = mkSeries(24, 0.9, 0.5, seed + 13, { min: 0.1 }).map((p) => ({ t: p.t, p50: p.v, p90: +(p.v * 1.8).toFixed(2), p99: +(p.v * 3.1).toFixed(2) }));
+    // Aurora
+    const aurCpu = mkSeries(24, 44, 20, seed + 21, { min: 3, max: 99 });
+    const aurAcu = mkSeries(24, 1.8, 0.9, seed + 22, { min: 0.5, max: 4 });
+    const aurConn = mkSeries(24, 62, 28, seed + 23, { min: 0 });
+    const aurMem = mkSeries(24, 900, 240, seed + 24, { min: 200 }); // MB
+    // 모달 추론 + FHIR
+    const modalErr = [
+      { m: "ECG", v: Math.round(pseudo(seed + 1) * 3) },
+      { m: "CXR", v: Math.round(pseudo(seed + 2) * 2) },
+      { m: "LAB", v: 0 },
+    ];
+    const modalLat = mkSeries(24, 1.4, 0.8, seed + 31, { min: 0.2 });
+    const fhirQ = mkSeries(24, 34, 26, seed + 32, { min: 0, trend: 0.4 });
 
-  // 활동 로그 — 환자 데이터에서 이벤트 합성, 최신순
-  const logs = useMemo<LogEntry[]>(() => {
-    const entries: LogEntry[] = [];
-    for (const p of patients) {
-      entries.push({ at: p.registeredAt, patient: p, kind: "register", text: "트리아지 등록 완료" });
-      if (p.aiStatus === "done") {
-        entries.push({ at: p.registeredAt, patient: p, kind: "ai_done", text: "AI 멀티모달 분석 완료" });
-      } else if (p.aiStatus === "analyzing") {
-        entries.push({ at: p.registeredAt, patient: p, kind: "analyzing", text: "AI 분석 진행 중" });
-      }
-      if (p.awaitingSign) {
-        entries.push({ at: p.registeredAt, patient: p, kind: "await_sign", text: "소견서 검토·서명 대기" });
-      }
-    }
-    return entries
-      .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
-      .slice(0, 14);
-  }, [patients]);
+    // 활성 알람 (목업) — critical 0, warning 2
+    const alarms: Alarm[] = [];
+    if (last(albLat.map((x) => ({ v: x.p99 }))) > 3)
+      alarms.push({ sev: "warning", name: "say2-6team-alb-latency-high", metric: "TargetResponseTime p99", value: `${last(albLat.map((x) => ({ v: x.p99 })))}s`, threshold: "> 3s", since: "4분 전" });
+    if (last(aurConn) > 100)
+      alarms.push({ sev: "warning", name: "say2-6team-aurora-connections-high", metric: "DatabaseConnections", value: `${Math.round(last(aurConn))}`, threshold: "> 100", since: "12분 전" });
+    alarms.push({ sev: "warning", name: "say2-6team-fhir-sync-queue-backlog", metric: "QueueDepth", value: `${Math.round(last(fhirQ))}`, threshold: "> 100", since: "방금" });
 
-  const maxKtas = Math.max(1, ...Object.values(stats.ktasDist));
+    return { services, albReq, alb5xx, albLat, aurCpu, aurAcu, aurConn, aurMem, modalErr, modalLat, fhirQ, alarms };
+  }, [seed]);
+
+  const critCount = d.alarms.filter((a) => a.sev === "critical").length;
+  const warnCount = d.alarms.filter((a) => a.sev === "warning").length;
+  const overall: Sev | "ok" = critCount > 0 ? "critical" : warnCount > 0 ? "warning" : "ok";
+  const runningTasks = d.services.reduce((n, s) => n + Number(s.tasks.split("/")[0]), 0);
+  const desiredTasks = d.services.reduce((n, s) => n + Number(s.tasks.split("/")[1]), 0);
 
   return (
-    <AppShell notifications={alerts.criticalPts.length}>
-      <div className="max-w-[1500px] mx-auto px-6 py-6">
-        {/* 페이지 헤더 */}
-        <div className="mb-5">
-          <h1 className="text-xl font-bold text-slate-900">검진 현황 대시보드</h1>
-          <p className="text-sm text-slate-500 mt-0.5">응급실 운영 모니터링 · 행정팀 전용</p>
-        </div>
+    <AppShell notifications={critCount + warnCount}>
+      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)]">
+        <div className="max-w-[1500px] mx-auto px-6 py-6 space-y-5">
 
-        {/* 상단 통계 카드 */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-          <StatCard Icon={Users} label="전체 환자" value={stats.total} tone="slate" />
-          <StatCard Icon={AlertTriangle} label="위급 (KTAS 1·2)" value={stats.critical} tone="red" />
-          <StatCard Icon={Activity} label="AI 분석 진행 중" value={stats.analyzing} tone="amber" />
-          <StatCard Icon={ClipboardCheck} label="미서명 소견서" value={stats.awaitingSign} tone="blue" />
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.1fr] gap-4">
-          {/* ── 좌: KTAS 분포 ── */}
-          <Panel title="KTAS 등급 분포" subtitle="Triage Severity Distribution">
-            <div className="space-y-2.5">
-              {([1, 2, 3, 4, 5] as KTAS[]).map((k) => {
-                const meta = KTAS_META[k];
-                const count = stats.ktasDist[k];
-                return (
-                  <div key={k} className="flex items-center gap-2.5">
-                    <span className={cn("inline-block w-16 px-1.5 py-0.5 text-[10px] font-bold text-white text-center", meta.bg)}>
-                      KTAS {k}
-                    </span>
-                    <span className="text-[11px] text-slate-500 w-10">{meta.label}</span>
-                    <div className="flex-1 h-4 bg-slate-100 border border-slate-200 relative">
-                      <div className={cn("h-full", meta.bg)} style={{ width: `${(count / maxKtas) * 100}%` }} />
-                    </div>
-                    <span className="w-8 text-right text-xs font-numeric font-bold text-slate-800">{count}</span>
-                  </div>
-                );
-              })}
+          {/* 헤더 */}
+          <div className="flex items-end gap-3">
+            <div>
+              <h1 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Server className="h-6 w-6 text-brand-600" /> 운영 모니터링
+              </h1>
+              <p className="text-[13px] text-slate-500 dark:text-vuno-muted mt-0.5">
+                운영팀 전용
+              </p>
             </div>
-
-            <div className="mt-5 pt-4 border-t border-slate-200 grid grid-cols-3 gap-3 text-center">
-              <MiniStat label="분석 완료" value={stats.done} />
-              <MiniStat label="분석 중" value={stats.analyzing} />
-              <MiniStat label="미서명" value={stats.awaitingSign} />
+            <div className="ml-auto flex items-center gap-2 text-[12px] text-slate-500 dark:text-vuno-muted">
+              <span className="font-numeric">{fmtClock(updatedAt)} 갱신</span>
+              <button
+                onClick={() => { setSeed((s) => s + 1); setUpdatedAt(new Date()); }}
+                className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg border border-slate-300 dark:border-vuno-border bg-white dark:bg-vuno-surface hover:bg-slate-50 dark:hover:bg-vuno-elevated font-bold transition-colors"
+              >
+                <RefreshCw className="h-3.5 w-3.5" /> 새로고침
+              </button>
             </div>
-          </Panel>
+          </div>
 
-          {/* ── 우: 알림 ── */}
-          <Panel title="알림" subtitle="Alerts · 즉시 조치 필요" icon={Bell}>
-            {alerts.criticalPts.length === 0 && alerts.unsigned.length === 0 ? (
-              <div className="py-8 text-center text-sm text-slate-400">현재 알림이 없습니다.</div>
+          {/* ① KPI */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <KpiCard
+              Icon={overall === "ok" ? ShieldCheck : AlertTriangle}
+              label="시스템 종합 상태"
+              value={overall === "ok" ? "정상" : overall === "warning" ? "주의" : "위험"}
+              tone={overall === "ok" ? "emerald" : overall === "warning" ? "amber" : "red"}
+            />
+            <KpiCard Icon={AlertTriangle} label="활성 알람" value={`${critCount} · ${warnCount}`} sub="Critical · Warning" tone={critCount ? "red" : warnCount ? "amber" : "emerald"} />
+            <KpiCard Icon={Boxes} label="실행 중 태스크" value={`${runningTasks}/${desiredTasks}`} sub="ECS Running / Desired" tone={runningTasks < desiredTasks ? "red" : "indigo"} />
+            <KpiCard Icon={Gauge} label="ALB p99 응답" value={`${last(d.albLat.map((x) => ({ v: x.p99 })))}s`} sub="임계 3s" tone="blue" />
+          </div>
+
+          {/* ② 활성 알람 */}
+          <Panel title="활성 알람" subtitle="Active Alarms · SNS critical/warning" icon={AlertTriangle}>
+            {d.alarms.length === 0 ? (
+              <div className="py-8 text-center text-sm text-emerald-600 dark:text-emerald-300 flex items-center justify-center gap-2">
+                <CheckCircle2 className="h-5 w-5" /> 활성 알람 없음 — 전체 정상
+              </div>
             ) : (
               <div className="space-y-1.5">
-                {alerts.criticalPts.map((p) => (
-                  <AlertRow
-                    key={`c-${p.id}`}
-                    tone="red"
-                    Icon={AlertTriangle}
-                    title={`위급 환자 — ${p.name}`}
-                    desc={`KTAS ${p.ktas} · ${p.chief}`}
-                    onClick={() => nav(detailHref(p))}
-                  />
-                ))}
-                {alerts.unsigned.map((p) => (
-                  <AlertRow
-                    key={`u-${p.id}`}
-                    tone="blue"
-                    Icon={ClipboardCheck}
-                    title={`소견서 서명 대기 — ${p.name}`}
-                    desc="의사 검토·서명이 필요합니다"
-                    onClick={() => nav(detailHref(p))}
-                  />
-                ))}
+                {d.alarms.map((a) => <AlarmRow key={a.name} a={a} />)}
               </div>
             )}
           </Panel>
-        </div>
 
-        {/* ── 활동 로그 ── */}
-        <div className="mt-4">
-          <Panel title="활동 로그" subtitle="Activity Log · 최근 이벤트" icon={Clock}>
-            <div className="divide-y divide-slate-100">
-              {logs.map((e, i) => (
-                <button
-                  key={i}
-                  onClick={() => nav(detailHref(e.patient))}
-                  className="w-full flex items-center gap-3 py-2 text-left hover:bg-slate-50 transition-colors px-1"
-                >
-                  <span className={cn("h-2 w-2 rounded-full flex-shrink-0", LOG_DOT[e.kind])} />
-                  <span className="text-[11px] font-numeric text-slate-400 w-20 flex-shrink-0">
-                    {fmtTime(e.at)}
-                  </span>
-                  <span className="text-xs font-semibold text-slate-800 w-24 flex-shrink-0 truncate">
-                    {e.patient.name}
-                  </span>
-                  <span className="text-xs text-slate-600 flex-1 truncate">{e.text}</span>
-                  <ChevronRight className="h-3.5 w-3.5 text-slate-300 flex-shrink-0" />
-                </button>
-              ))}
+          {/* ③ ECS 서비스 */}
+          <Panel title="ECS 서비스" subtitle="Fargate · CPU / Memory / Tasks" icon={Cpu}>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {d.services.map((s) => <ServiceCard key={s.key} s={s} />)}
             </div>
           </Panel>
+
+          {/* ④ ALB / 트래픽 */}
+          <Panel title="ALB · 트래픽" subtitle="Application Load Balancer" icon={Network}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <ChartBox title="요청 수 (RequestCount)" value={`${Math.round(last(d.albReq))}/min`}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={d.albReq} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <defs><linearGradient id="gReq" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.indigo} stopOpacity={0.35} /><stop offset="100%" stopColor={C.indigo} stopOpacity={0} /></linearGradient></defs>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="t" tick={AXIS} interval={5} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip {...TOOLTIP} />
+                    <Area type="monotone" dataKey="v" name="req/min" stroke={C.indigo} fill="url(#gReq)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartBox>
+
+              <ChartBox title="5xx 오류 (ELB + Target)" value={`임계 >10`}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <BarChart data={d.alb5xx} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="t" tick={AXIS} interval={5} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip {...TOOLTIP} />
+                    <ReferenceLine y={10} stroke={C.red} strokeDasharray="4 4" />
+                    <Bar dataKey="elb" name="ELB 5xx" stackId="a" fill={C.amber} />
+                    <Bar dataKey="tgt" name="Target 5xx" stackId="a" fill={C.red} radius={[2, 2, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartBox>
+
+              <ChartBox title="응답시간 p50/p90/p99" value={`p99 ${last(d.albLat.map((x) => ({ v: x.p99 })))}s`}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <LineChart data={d.albLat} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="t" tick={AXIS} interval={5} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip {...TOOLTIP} />
+                    <ReferenceLine y={3} stroke={C.red} strokeDasharray="4 4" />
+                    <Line type="monotone" dataKey="p50" stroke={C.emerald} dot={false} strokeWidth={1.5} />
+                    <Line type="monotone" dataKey="p90" stroke={C.amber} dot={false} strokeWidth={1.5} />
+                    <Line type="monotone" dataKey="p99" stroke={C.red} dot={false} strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartBox>
+            </div>
+          </Panel>
+
+          {/* ⑤ Aurora */}
+          <Panel title="Aurora Serverless v2" subtitle="RDS · CPU / ACU / Connections / Memory" icon={Database}>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+              <MiniLine title="CPU 사용률" data={d.aurCpu} unit="%" color={C.indigo} threshold={80} />
+              <MiniLine title="용량 (ACU)" data={d.aurAcu} unit="" color={C.violet} threshold={3.6} />
+              <MiniLine title="DB 커넥션" data={d.aurConn} unit="" color={C.blue} threshold={100} />
+              <MiniLine title="가용 메모리" data={d.aurMem} unit="MB" color={C.emerald} threshold={256} thresholdBelow />
+            </div>
+          </Panel>
+
+          {/* ⑥ AI 모달 추론 + FHIR Sync */}
+          <Panel title="AI 모달 추론 · FHIR Sync" subtitle="DRAI/Modal · DRAI/FhirSync (커스텀 메트릭)" icon={Brain}>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+              <ChartBox title="모달별 추론 에러 수" value="임계 ≥3">
+                <ResponsiveContainer width="100%" height={150}>
+                  <BarChart data={d.modalErr} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="m" tick={AXIS} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} allowDecimals={false} />
+                    <Tooltip {...TOOLTIP} />
+                    <ReferenceLine y={3} stroke={C.red} strokeDasharray="4 4" />
+                    <Bar dataKey="v" name="errors" radius={[3, 3, 0, 0]}>
+                      {d.modalErr.map((e) => <Cell key={e.m} fill={e.v >= 3 ? C.red : C.violet} />)}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartBox>
+
+              <ChartBox title="추론 고지연 (HighLatency)" value={`${last(d.modalLat)}s`}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <LineChart data={d.modalLat} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="t" tick={AXIS} interval={5} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip {...TOOLTIP} />
+                    <Line type="monotone" dataKey="v" name="지연(s)" stroke={C.amber} dot={false} strokeWidth={2} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartBox>
+
+              <ChartBox title="FHIR Sync 큐 적체" value={`${Math.round(last(d.fhirQ))} · 임계 >100`}>
+                <ResponsiveContainer width="100%" height={150}>
+                  <AreaChart data={d.fhirQ} margin={{ top: 4, right: 6, left: -18, bottom: 0 }}>
+                    <defs><linearGradient id="gQ" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.blue} stopOpacity={0.35} /><stop offset="100%" stopColor={C.blue} stopOpacity={0} /></linearGradient></defs>
+                    <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+                    <XAxis dataKey="t" tick={AXIS} interval={5} tickLine={false} axisLine={false} />
+                    <YAxis tick={AXIS} tickLine={false} axisLine={false} width={32} />
+                    <Tooltip {...TOOLTIP} />
+                    <ReferenceLine y={100} stroke={C.red} strokeDasharray="4 4" />
+                    <Area type="monotone" dataKey="v" name="queue" stroke={C.blue} fill="url(#gQ)" strokeWidth={2} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </ChartBox>
+            </div>
+          </Panel>
+
+          <p className="text-[11px] text-slate-400 dark:text-vuno-dim text-center pb-2">
+            ⓘ 목업 데이터입니다. ECS 전체 배포 후 백엔드 <span className="font-numeric">/ops/alarms · /ops/metrics</span>(CloudWatch)에 연결하면 실데이터로 표시됩니다.
+          </p>
         </div>
       </div>
     </AppShell>
   );
 }
 
-function detailHref(p: DemoPatient): string {
-  return isLivePatient(p.id)
-    ? `/demo/patient/${p.id}?encounter_id=${p.id}`
-    : `/demo/patient/${p.id}`;
+/* ── 시계 ── */
+function fmtClock(d: Date) {
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}:${String(d.getSeconds()).padStart(2, "0")}`;
 }
 
-function fmtTime(iso: string): string {
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return "—";
-  return d.toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-}
-
-const LOG_DOT: Record<LogEntry["kind"], string> = {
-  register: "bg-slate-400",
-  ai_done: "bg-emerald-500",
-  analyzing: "bg-amber-500",
-  await_sign: "bg-blue-500",
-};
-
+/* ── 톤 ── */
 const TONE: Record<string, { bg: string; text: string; icon: string }> = {
-  slate: { bg: "bg-slate-50 border-slate-200", text: "text-slate-900", icon: "text-slate-500" },
-  red: { bg: "bg-red-50 border-red-200", text: "text-red-700", icon: "text-red-500" },
-  amber: { bg: "bg-amber-50 border-amber-200", text: "text-amber-700", icon: "text-amber-500" },
-  blue: { bg: "bg-blue-50 border-blue-200", text: "text-blue-700", icon: "text-blue-500" },
+  emerald: { bg: "bg-emerald-50 dark:bg-emerald-500/15 border-emerald-200 dark:border-emerald-500/40", text: "text-emerald-700 dark:text-emerald-300", icon: "text-emerald-500" },
+  amber: { bg: "bg-amber-50 dark:bg-amber-500/15 border-amber-200 dark:border-amber-500/40", text: "text-amber-700 dark:text-amber-300", icon: "text-amber-500" },
+  red: { bg: "bg-red-50 dark:bg-red-500/15 border-red-200 dark:border-red-500/40", text: "text-red-700 dark:text-red-300", icon: "text-red-500" },
+  blue: { bg: "bg-blue-50 dark:bg-blue-500/15 border-blue-200 dark:border-blue-500/40", text: "text-blue-700 dark:text-blue-300", icon: "text-blue-500" },
+  indigo: { bg: "bg-brand-50 dark:bg-brand-500/15 border-brand-200 dark:border-brand-500/40", text: "text-brand-700 dark:text-brand-300", icon: "text-brand-500" },
 };
 
-function StatCard({
-  Icon, label, value, tone,
-}: {
-  Icon: typeof Users;
-  label: string;
-  value: number;
-  tone: keyof typeof TONE;
+function KpiCard({ Icon, label, value, sub, tone }: {
+  Icon: typeof Server; label: string; value: string; sub?: string; tone: keyof typeof TONE;
 }) {
   const t = TONE[tone];
   return (
-    <div className={cn("border px-4 py-3.5 flex items-center justify-between", t.bg)}>
-      <div>
-        <div className="text-[11px] text-slate-500 mb-1">{label}</div>
-        <div className={cn("text-2xl font-bold font-numeric", t.text)}>{value}</div>
+    <div className={cn("border rounded-xl shadow-sm px-4 py-3.5 flex items-center justify-between", t.bg)}>
+      <div className="min-w-0">
+        <div className="text-[11px] text-slate-500 dark:text-vuno-muted mb-1">{label}</div>
+        <div className={cn("text-2xl font-bold font-numeric leading-none", t.text)}>{value}</div>
+        {sub && <div className="text-[10px] text-slate-400 dark:text-vuno-dim mt-1">{sub}</div>}
       </div>
-      <Icon className={cn("h-7 w-7", t.icon)} />
+      <Icon className={cn("h-7 w-7 flex-shrink-0", t.icon)} />
     </div>
   );
 }
 
-function MiniStat({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <div className="text-lg font-bold font-numeric text-slate-900">{value}</div>
-      <div className="text-[10px] text-slate-500">{label}</div>
-    </div>
-  );
-}
-
-function Panel({
-  title, subtitle, icon: Icon, children,
-}: {
-  title: string;
-  subtitle: string;
-  icon?: typeof Bell;
-  children: React.ReactNode;
+function Panel({ title, subtitle, icon: Icon, children }: {
+  title: string; subtitle: string; icon?: typeof Server; children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-slate-300 shadow-sm">
-      <header className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-        {Icon && <Icon className="h-4 w-4 text-slate-600" />}
+    <section className="bg-white dark:bg-vuno-surface border border-slate-200 dark:border-vuno-border rounded-xl shadow-sm overflow-hidden">
+      <header className="px-4 py-2.5 border-b border-slate-200 dark:border-vuno-border bg-slate-50 dark:bg-vuno-bg flex items-center gap-2">
+        {Icon && <Icon className="h-4 w-4 text-slate-600 dark:text-vuno-muted" />}
         <div>
-          <div className="text-sm font-bold text-slate-900 leading-none">{title}</div>
-          <div className="text-[9px] text-slate-400 tracking-wider uppercase mt-0.5">{subtitle}</div>
+          <div className="text-base font-bold text-slate-900 dark:text-white leading-none">{title}</div>
+          <div className="text-[10px] text-slate-400 dark:text-vuno-dim tracking-wider uppercase mt-0.5">{subtitle}</div>
         </div>
       </header>
       <div className="p-4">{children}</div>
@@ -248,27 +320,102 @@ function Panel({
   );
 }
 
-function AlertRow({
-  tone, Icon, title, desc, onClick,
-}: {
-  tone: "red" | "blue";
-  Icon: typeof AlertTriangle;
-  title: string;
-  desc: string;
-  onClick: () => void;
-}) {
-  const t = TONE[tone];
+function AlarmRow({ a }: { a: Alarm }) {
+  const t = a.sev === "critical" ? TONE.red : TONE.amber;
   return (
-    <button
-      onClick={onClick}
-      className={cn("w-full flex items-center gap-2.5 px-2.5 py-2 border text-left hover:brightness-95 transition", t.bg)}
-    >
-      <Icon className={cn("h-4 w-4 flex-shrink-0", t.icon)} />
+    <div className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg border", t.bg)}>
+      <span className={cn("px-1.5 py-0.5 rounded text-[10px] font-bold uppercase", a.sev === "critical" ? "bg-red-600 text-white" : "bg-amber-500 text-white")}>
+        {a.sev}
+      </span>
       <div className="min-w-0 flex-1">
-        <div className={cn("text-[12px] font-bold leading-tight", t.text)}>{title}</div>
-        <div className="text-[10px] text-slate-500 truncate">{desc}</div>
+        <div className={cn("text-[13px] font-bold font-numeric truncate", t.text)}>{a.name}</div>
+        <div className="text-[11px] text-slate-500 dark:text-vuno-muted truncate">{a.metric} · 현재 {a.value} ({a.threshold})</div>
       </div>
-      <ChevronRight className="h-4 w-4 text-slate-400 flex-shrink-0" />
-    </button>
+      <span className="text-[11px] text-slate-400 dark:text-vuno-dim flex-shrink-0">{a.since}</span>
+    </div>
+  );
+}
+
+function ServiceCard({ s }: {
+  s: { key: string; label: string; tasks: string; cpu: { t: string; v: number }[]; mem: { t: string; v: number }[] };
+}) {
+  const cpu = last(s.cpu), mem = last(s.mem);
+  const [run, des] = s.tasks.split("/").map(Number);
+  const ok = run >= des;
+  return (
+    <div className="border border-slate-200 dark:border-vuno-border rounded-xl bg-slate-50/60 dark:bg-vuno-bg overflow-hidden">
+      <div className="px-3 py-2 flex items-center gap-2 border-b border-slate-200 dark:border-vuno-border bg-white dark:bg-vuno-surface">
+        <Activity className="h-3.5 w-3.5 text-brand-500" />
+        <span className="text-[13px] font-bold text-slate-900 dark:text-white">{s.label}</span>
+        <span className={cn(
+          "ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold",
+          ok ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300" : "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+        )}>
+          {ok ? "정상" : "다운"} {s.tasks}
+        </span>
+      </div>
+      <div className="p-3 space-y-2">
+        <UsageBar label="CPU" value={cpu} />
+        <UsageBar label="MEM" value={mem} />
+        <ResponsiveContainer width="100%" height={42}>
+          <AreaChart data={s.cpu} margin={{ top: 2, right: 0, left: 0, bottom: 0 }}>
+            <defs><linearGradient id={`sp-${s.key}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.indigo} stopOpacity={0.3} /><stop offset="100%" stopColor={C.indigo} stopOpacity={0} /></linearGradient></defs>
+            <Area type="monotone" dataKey="v" stroke={C.indigo} fill={`url(#sp-${s.key})`} strokeWidth={1.5} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function UsageBar({ label, value }: { label: string; value: number }) {
+  const tone = value >= 85 ? C.red : value >= 70 ? C.amber : C.indigo;
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] font-bold text-slate-400 dark:text-vuno-dim w-8">{label}</span>
+      <div className="flex-1 h-2 rounded-full bg-slate-200 dark:bg-vuno-elevated overflow-hidden">
+        <div className="h-full rounded-full" style={{ width: `${value}%`, background: tone }} />
+      </div>
+      <span className="text-[11px] font-numeric font-bold text-slate-700 dark:text-white w-10 text-right">{value}%</span>
+    </div>
+  );
+}
+
+function ChartBox({ title, value, children }: { title: string; value?: string; children: React.ReactNode }) {
+  return (
+    <div className="border border-slate-200 dark:border-vuno-border rounded-xl p-3 bg-slate-50/40 dark:bg-vuno-bg/40">
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">{title}</span>
+        {value && <span className="ml-auto text-[11px] font-numeric text-slate-400 dark:text-vuno-dim">{value}</span>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function MiniLine({ title, data, unit, color, threshold, thresholdBelow }: {
+  title: string; data: { t: string; v: number }[]; unit: string; color: string; threshold: number; thresholdBelow?: boolean;
+}) {
+  const cur = last(data);
+  const breach = thresholdBelow ? cur < threshold : cur > threshold;
+  return (
+    <div className="border border-slate-200 dark:border-vuno-border rounded-xl p-3 bg-slate-50/40 dark:bg-vuno-bg/40">
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">{title}</span>
+        <span className={cn("ml-auto text-[13px] font-numeric font-bold", breach ? "text-red-600 dark:text-red-300" : "text-slate-900 dark:text-white")}>
+          {cur}{unit}
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={110}>
+        <LineChart data={data} margin={{ top: 4, right: 6, left: -22, bottom: 0 }}>
+          <CartesianGrid stroke={GRID} strokeOpacity={0.15} vertical={false} />
+          <XAxis dataKey="t" tick={AXIS} interval={7} tickLine={false} axisLine={false} />
+          <YAxis tick={AXIS} tickLine={false} axisLine={false} width={34} />
+          <Tooltip {...TOOLTIP} />
+          <ReferenceLine y={threshold} stroke={C.red} strokeDasharray="4 4" />
+          <Line type="monotone" dataKey="v" name={title} stroke={color} dot={false} strokeWidth={2} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   );
 }

@@ -14,7 +14,7 @@ import type { QueuePatient } from "../types/triage";
 export const DEMO_PATIENTS_50: QueuePatient[] = [
   // ── KTAS 1 (소생) — 2명 ─────────────────────────────────
   {
-    id: "P-10000001", mrn: "M2026-0001", name: "김○○", age: 67, sex: "M",
+    id: "P-10000001", mrn: "M2026-0001", name: "김민준", age: 67, sex: "M",
     arrived_at: "2026-05-04T08:12:00", registered_at: "2026-05-04T08:13:00",
     status: "testing", ktas: 1,
     chief_complaint: "altered_mental", complaint_detail: "보호자 발견 시 의식없음, 호흡 미약",
@@ -24,7 +24,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "정간호사",
   },
   {
-    id: "P-10000002", mrn: "M2026-0002", name: "박○○", age: 78, sex: "F",
+    id: "P-10000002", mrn: "M2026-0002", name: "박서연", age: 78, sex: "F",
     arrived_at: "2026-05-04T08:34:00", registered_at: "2026-05-04T08:35:00",
     status: "testing", ktas: 1,
     chief_complaint: "dyspnea", complaint_detail: "호흡정지 직전, CPR 시행 필요 가능성",
@@ -35,7 +35,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
 
   // ── KTAS 2 (긴급) — 8명 ─────────────────────────────────
   {
-    id: "P-10000003", mrn: "M2026-0003", name: "이○○", age: 54, sex: "M",
+    id: "P-10000003", mrn: "M2026-0003", name: "이도윤", age: 54, sex: "M",
     arrived_at: "2026-05-04T08:45:00", registered_at: "2026-05-04T08:46:00",
     status: "in_consult", ktas: 2,
     chief_complaint: "chest_pain", complaint_detail: "30분 전 시작된 좌측 흉통, 좌측 어깨 방사통",
@@ -45,7 +45,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "정간호사",
   },
   {
-    id: "P-10000004", mrn: "M2026-0004", name: "강○○", age: 71, sex: "M",
+    id: "P-10000004", mrn: "M2026-0004", name: "강시우", age: 71, sex: "M",
     arrived_at: "2026-05-04T08:52:00", registered_at: "2026-05-04T08:53:00",
     status: "in_consult", ktas: 2,
     chief_complaint: "dyspnea", complaint_detail: "어제부터 악화, 야간 좌위호흡",
@@ -55,7 +55,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "정간호사",
   },
   {
-    id: "P-10000005", mrn: "M2026-0005", name: "유○○", age: 28, sex: "F",
+    id: "P-10000005", mrn: "M2026-0005", name: "유지우", age: 28, sex: "F",
     arrived_at: "2026-05-04T08:58:00", registered_at: "2026-05-04T08:59:00",
     status: "triage", ktas: 2,
     chief_complaint: "abdominal_pain", complaint_detail: "RLQ 격심한 통증, 압통+",
@@ -64,7 +64,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000006", mrn: "M2026-0006", name: "안○○", age: 45, sex: "M",
+    id: "P-10000006", mrn: "M2026-0006", name: "안주원", age: 45, sex: "M",
     arrived_at: "2026-05-04T09:05:00", registered_at: "2026-05-04T09:06:00",
     status: "admit_wait", ktas: 2,
     chief_complaint: "trauma", complaint_detail: "교통사고, 흉부 타박상, 혈흉 의심",
@@ -73,7 +73,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000007", mrn: "M2026-0007", name: "김○○", age: 62, sex: "M",
+    id: "P-10000007", mrn: "M2026-0007", name: "김하준", age: 62, sex: "M",
     arrived_at: "2026-05-04T09:10:00", registered_at: "2026-05-04T09:11:00",
     status: "testing", ktas: 2,
     chief_complaint: "syncope", complaint_detail: "운동 중 갑작스런 의식소실, 회복 후 호소",
@@ -83,7 +83,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000008", mrn: "M2026-0008", name: "윤○○", age: 35, sex: "M",
+    id: "P-10000008", mrn: "M2026-0008", name: "윤지호", age: 35, sex: "M",
     arrived_at: "2026-05-04T09:15:00", registered_at: "2026-05-04T09:16:00",
     status: "in_consult", ktas: 2,
     chief_complaint: "headache", complaint_detail: "벼락치기 두통, 구토 동반",
@@ -92,7 +92,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000009", mrn: "M2026-0009", name: "신○○", age: 58, sex: "F",
+    id: "P-10000009", mrn: "M2026-0009", name: "신서윤", age: 58, sex: "F",
     arrived_at: "2026-05-04T09:22:00", registered_at: "2026-05-04T09:23:00",
     status: "testing", ktas: 2,
     chief_complaint: "chest_pain", complaint_detail: "운동 후 발생한 흉부 압박감",
@@ -102,7 +102,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000010", mrn: "M2026-0010", name: "이○○", age: 73, sex: "M",
+    id: "P-10000010", mrn: "M2026-0010", name: "이준서", age: 73, sex: "M",
     arrived_at: "2026-05-04T09:30:00", registered_at: "2026-05-04T09:31:00",
     status: "in_consult", ktas: 2,
     chief_complaint: "weakness", complaint_detail: "좌측 편마비 의심, 언어장애",
@@ -114,7 +114,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
 
   // ── KTAS 3 (응급) — 22명 ────────────────────────────────
   {
-    id: "P-10000011", mrn: "M2026-0011", name: "김○○", age: 42, sex: "M",
+    id: "P-10000011", mrn: "M2026-0011", name: "김건우", age: 42, sex: "M",
     arrived_at: "2026-05-04T09:35:00", registered_at: "2026-05-04T09:36:00",
     status: "testing", ktas: 3,
     chief_complaint: "chest_pain", complaint_detail: "비전형적 흉통, 운동과 무관",
@@ -122,7 +122,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "김간호사",
   },
   {
-    id: "P-10000012", mrn: "M2026-0012", name: "장○○", age: 65, sex: "M",
+    id: "P-10000012", mrn: "M2026-0012", name: "장현우", age: 65, sex: "M",
     arrived_at: "2026-05-04T09:40:00", registered_at: "2026-05-04T09:41:00",
     status: "in_consult", ktas: 3,
     chief_complaint: "dyspnea", complaint_detail: "활동 시 호흡곤란, 다리 부종",
@@ -132,7 +132,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "김간호사",
   },
   {
-    id: "P-10000013", mrn: "M2026-0013", name: "정○○", age: 70, sex: "M",
+    id: "P-10000013", mrn: "M2026-0013", name: "정우진", age: 70, sex: "M",
     arrived_at: "2026-05-04T09:45:00", registered_at: "2026-05-04T09:46:00",
     status: "in_consult", ktas: 3,
     chief_complaint: "abdominal_pain", complaint_detail: "상복부 통증, 식후 악화",
@@ -140,7 +140,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["LIVER"], triaged_by: "김간호사",
   },
   {
-    id: "P-10000014", mrn: "M2026-0014", name: "허○○", age: 51, sex: "M",
+    id: "P-10000014", mrn: "M2026-0014", name: "허정훈", age: 51, sex: "M",
     arrived_at: "2026-05-04T09:50:00", registered_at: "2026-05-04T09:51:00",
     status: "arrived", ktas: 3,
     chief_complaint: "back_pain", complaint_detail: "허리 우측 격심한 산통",
@@ -148,7 +148,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "김간호사",
   },
   {
-    id: "P-10000015", mrn: "M2026-0015", name: "황○○", age: 38, sex: "F",
+    id: "P-10000015", mrn: "M2026-0015", name: "황하은", age: 38, sex: "F",
     arrived_at: "2026-05-04T09:55:00", registered_at: "2026-05-04T09:56:00",
     status: "results_pending", ktas: 3,
     chief_complaint: "palpitation", complaint_detail: "갑작스런 두근거림 30분 지속",
@@ -156,7 +156,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "김간호사",
   },
   {
-    id: "P-10000016", mrn: "M2026-0016", name: "이○○", age: 80, sex: "M",
+    id: "P-10000016", mrn: "M2026-0016", name: "이영호", age: 80, sex: "M",
     arrived_at: "2026-05-04T10:00:00", registered_at: "2026-05-04T10:01:00",
     status: "results_pending", ktas: 3,
     chief_complaint: "fever", complaint_detail: "3일째 고열, 기침",
@@ -164,7 +164,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["DM", "HTN", "CKD"], triaged_by: "김간호사",
   },
   {
-    id: "P-10000017", mrn: "M2026-0017", name: "이○○", age: 55, sex: "M",
+    id: "P-10000017", mrn: "M2026-0017", name: "이성민", age: 55, sex: "M",
     arrived_at: "2026-05-04T10:05:00", registered_at: "2026-05-04T10:06:00",
     status: "in_consult", ktas: 3,
     chief_complaint: "nausea_vomiting", complaint_detail: "지속적 구토, 탈수 소견",
@@ -172,7 +172,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "김간호사",
   },
   {
-    id: "P-10000018", mrn: "M2026-0018", name: "세○○", age: 47, sex: "M",
+    id: "P-10000018", mrn: "M2026-0018", name: "세태현", age: 47, sex: "M",
     arrived_at: "2026-05-04T10:10:00", registered_at: "2026-05-04T10:11:00",
     status: "testing", ktas: 3,
     chief_complaint: "headache", complaint_detail: "편두통 양상, 광공포",
@@ -180,7 +180,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000019", mrn: "M2026-0019", name: "김○○", age: 60, sex: "F",
+    id: "P-10000019", mrn: "M2026-0019", name: "김지유", age: 60, sex: "F",
     arrived_at: "2026-05-04T10:15:00", registered_at: "2026-05-04T10:16:00",
     status: "results_pending", ktas: 3,
     chief_complaint: "chest_pain", complaint_detail: "스트레스성 흉통 의심",
@@ -188,7 +188,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000020", mrn: "M2026-0020", name: "박○○", age: 33, sex: "M",
+    id: "P-10000020", mrn: "M2026-0020", name: "박동현", age: 33, sex: "M",
     arrived_at: "2026-05-04T10:20:00", registered_at: "2026-05-04T10:21:00",
     status: "arrived", ktas: 3,
     chief_complaint: "abdominal_pain", complaint_detail: "전반적 복통, 설사",
@@ -196,7 +196,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000021", mrn: "M2026-0021", name: "이○○", age: 68, sex: "M",
+    id: "P-10000021", mrn: "M2026-0021", name: "이재원", age: 68, sex: "M",
     arrived_at: "2026-05-04T10:25:00", registered_at: "2026-05-04T10:26:00",
     status: "admit_wait", ktas: 3,
     chief_complaint: "dyspnea", complaint_detail: "만성 호흡곤란 악화",
@@ -205,7 +205,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     triaged_by: "박간호사",
   },
   {
-    id: "P-10000022", mrn: "M2026-0022", name: "정○○", age: 76, sex: "M",
+    id: "P-10000022", mrn: "M2026-0022", name: "정승현", age: 76, sex: "M",
     arrived_at: "2026-05-04T10:30:00", registered_at: "2026-05-04T10:31:00",
     status: "in_consult", ktas: 3,
     chief_complaint: "weakness", complaint_detail: "전신 무력감, 어지럼증",
@@ -213,7 +213,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["CAD", "CKD"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000023", mrn: "M2026-0023", name: "이○○", age: 29, sex: "F",
+    id: "P-10000023", mrn: "M2026-0023", name: "이은서", age: 29, sex: "F",
     arrived_at: "2026-05-04T10:35:00", registered_at: "2026-05-04T10:36:00",
     status: "results_pending", ktas: 3,
     chief_complaint: "abdominal_pain", complaint_detail: "임신 24주, 하복부 통증",
@@ -221,7 +221,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["PREGNANT"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000024", mrn: "M2026-0024", name: "김○○", age: 49, sex: "M",
+    id: "P-10000024", mrn: "M2026-0024", name: "김민재", age: 49, sex: "M",
     arrived_at: "2026-05-04T10:40:00", registered_at: "2026-05-04T10:41:00",
     status: "discharged", ktas: 3,
     chief_complaint: "trauma", complaint_detail: "낙상, 어깨 통증",
@@ -229,7 +229,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000025", mrn: "M2026-0025", name: "한○○", age: 56, sex: "M",
+    id: "P-10000025", mrn: "M2026-0025", name: "한윤호", age: 56, sex: "M",
     arrived_at: "2026-05-04T10:45:00", registered_at: "2026-05-04T10:46:00",
     status: "admit_wait", ktas: 3,
     chief_complaint: "fever", complaint_detail: "발열, 인후통, 근육통",
@@ -237,7 +237,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000026", mrn: "M2026-0026", name: "이○○", age: 41, sex: "F",
+    id: "P-10000026", mrn: "M2026-0026", name: "이수아", age: 41, sex: "F",
     arrived_at: "2026-05-04T10:50:00", registered_at: "2026-05-04T10:51:00",
     status: "testing", ktas: 3,
     chief_complaint: "headache", complaint_detail: "긴장성 두통 양상",
@@ -245,7 +245,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000027", mrn: "M2026-0027", name: "조○○", age: 64, sex: "M",
+    id: "P-10000027", mrn: "M2026-0027", name: "조지훈", age: 64, sex: "M",
     arrived_at: "2026-05-04T10:55:00", registered_at: "2026-05-04T10:56:00",
     status: "testing", ktas: 3,
     chief_complaint: "back_pain", complaint_detail: "요추부 격심한 통증",
@@ -253,7 +253,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000028", mrn: "M2026-0028", name: "강○○", age: 72, sex: "M",
+    id: "P-10000028", mrn: "M2026-0028", name: "강상우", age: 72, sex: "M",
     arrived_at: "2026-05-04T11:00:00", registered_at: "2026-05-04T11:01:00",
     status: "in_consult", ktas: 3,
     chief_complaint: "syncope", complaint_detail: "기립 시 어지럼증",
@@ -261,7 +261,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["DM"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000029", mrn: "M2026-0029", name: "최○○", age: 36, sex: "M",
+    id: "P-10000029", mrn: "M2026-0029", name: "최강민", age: 36, sex: "M",
     arrived_at: "2026-05-04T11:05:00", registered_at: "2026-05-04T11:06:00",
     status: "testing", ktas: 3,
     chief_complaint: "palpitation", complaint_detail: "카페인 섭취 후 두근거림",
@@ -269,7 +269,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000030", mrn: "M2026-0030", name: "맹○○", age: 53, sex: "F",
+    id: "P-10000030", mrn: "M2026-0030", name: "맹지아", age: 53, sex: "F",
     arrived_at: "2026-05-04T11:10:00", registered_at: "2026-05-04T11:11:00",
     status: "admit_wait", ktas: 3,
     chief_complaint: "chest_pain", complaint_detail: "역류성 식도염 의심",
@@ -277,7 +277,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000031", mrn: "M2026-0031", name: "이○○", age: 44, sex: "M",
+    id: "P-10000031", mrn: "M2026-0031", name: "이진석", age: 44, sex: "M",
     arrived_at: "2026-05-04T11:15:00", registered_at: "2026-05-04T11:16:00",
     status: "discharged", ktas: 3,
     chief_complaint: "abdominal_pain", complaint_detail: "급성 위염 의심",
@@ -285,7 +285,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000032", mrn: "M2026-0032", name: "이○○", age: 67, sex: "M",
+    id: "P-10000032", mrn: "M2026-0032", name: "이형준", age: 67, sex: "M",
     arrived_at: "2026-05-04T11:20:00", registered_at: "2026-05-04T11:21:00",
     status: "results_pending", ktas: 3,
     chief_complaint: "dyspnea", complaint_detail: "만성기침 악화",
@@ -295,7 +295,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
 
   // ── KTAS 4 (준응급) — 12명 ──────────────────────────────
   {
-    id: "P-10000033", mrn: "M2026-0033", name: "이○○", age: 32, sex: "M",
+    id: "P-10000033", mrn: "M2026-0033", name: "이태양", age: 32, sex: "M",
     arrived_at: "2026-05-04T11:25:00", registered_at: "2026-05-04T11:26:00",
     status: "testing", ktas: 4,
     chief_complaint: "headache", complaint_detail: "경미한 두통, 충분한 수면 부족",
@@ -303,7 +303,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000034", mrn: "M2026-0034", name: "성○○", age: 26, sex: "F",
+    id: "P-10000034", mrn: "M2026-0034", name: "성다은", age: 26, sex: "F",
     arrived_at: "2026-05-04T11:30:00", registered_at: "2026-05-04T11:31:00",
     status: "admit_wait", ktas: 4,
     chief_complaint: "abdominal_pain", complaint_detail: "생리통 양상",
@@ -311,7 +311,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000035", mrn: "M2026-0035", name: "변○○", age: 50, sex: "M",
+    id: "P-10000035", mrn: "M2026-0035", name: "변민준", age: 50, sex: "M",
     arrived_at: "2026-05-04T11:35:00", registered_at: "2026-05-04T11:36:00",
     status: "in_consult", ktas: 4,
     chief_complaint: "back_pain", complaint_detail: "근육통 양상",
@@ -319,7 +319,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000036", mrn: "M2026-0036", name: "흥○○", age: 39, sex: "M",
+    id: "P-10000036", mrn: "M2026-0036", name: "흥도윤", age: 39, sex: "M",
     arrived_at: "2026-05-04T11:40:00", registered_at: "2026-05-04T11:41:00",
     status: "discharged", ktas: 4,
     chief_complaint: "trauma", complaint_detail: "손목 염좌",
@@ -327,7 +327,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000037", mrn: "M2026-0037", name: "놀○○", age: 43, sex: "M",
+    id: "P-10000037", mrn: "M2026-0037", name: "놀시우", age: 43, sex: "M",
     arrived_at: "2026-05-04T11:45:00", registered_at: "2026-05-04T11:46:00",
     status: "discharged", ktas: 4,
     chief_complaint: "fever", complaint_detail: "감기 증상",
@@ -335,7 +335,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000038", mrn: "M2026-0038", name: "장○○", age: 22, sex: "F",
+    id: "P-10000038", mrn: "M2026-0038", name: "장채원", age: 22, sex: "F",
     arrived_at: "2026-05-04T11:50:00", registered_at: "2026-05-04T11:51:00",
     status: "arrived", ktas: 4,
     chief_complaint: "nausea_vomiting", complaint_detail: "음식물 섭취 후 메스꺼움",
@@ -343,7 +343,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000039", mrn: "M2026-0039", name: "홍○○", age: 24, sex: "F",
+    id: "P-10000039", mrn: "M2026-0039", name: "홍예린", age: 24, sex: "F",
     arrived_at: "2026-05-04T11:55:00", registered_at: "2026-05-04T11:56:00",
     status: "testing", ktas: 4,
     chief_complaint: "headache", complaint_detail: "월경 동반 두통",
@@ -351,7 +351,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000040", mrn: "M2026-0040", name: "심○○", age: 31, sex: "F",
+    id: "P-10000040", mrn: "M2026-0040", name: "심소율", age: 31, sex: "F",
     arrived_at: "2026-05-04T12:00:00", registered_at: "2026-05-04T12:01:00",
     status: "results_pending", ktas: 4,
     chief_complaint: "weakness", complaint_detail: "피로감, 어지럼증",
@@ -359,7 +359,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000041", mrn: "M2026-0041", name: "심○○", age: 65, sex: "M",
+    id: "P-10000041", mrn: "M2026-0041", name: "심주원", age: 65, sex: "M",
     arrived_at: "2026-05-04T12:05:00", registered_at: "2026-05-04T12:06:00",
     status: "triage", ktas: 4,
     chief_complaint: "back_pain", complaint_detail: "만성 요통 악화",
@@ -367,7 +367,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000042", mrn: "M2026-0042", name: "춘○○", age: 55, sex: "F",
+    id: "P-10000042", mrn: "M2026-0042", name: "춘유진", age: 55, sex: "F",
     arrived_at: "2026-05-04T12:10:00", registered_at: "2026-05-04T12:11:00",
     status: "results_pending", ktas: 4,
     chief_complaint: "abdominal_pain", complaint_detail: "복부 불쾌감",
@@ -375,7 +375,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000043", mrn: "M2026-0043", name: "방○○", age: 28, sex: "M",
+    id: "P-10000043", mrn: "M2026-0043", name: "방하준", age: 28, sex: "M",
     arrived_at: "2026-05-04T12:15:00", registered_at: "2026-05-04T12:16:00",
     status: "triage", ktas: 4,
     chief_complaint: "trauma", complaint_detail: "발목 염좌",
@@ -383,7 +383,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000044", mrn: "M2026-0044", name: "향○○", age: 23, sex: "F",
+    id: "P-10000044", mrn: "M2026-0044", name: "향민서", age: 23, sex: "F",
     arrived_at: "2026-05-04T12:20:00", registered_at: "2026-05-04T12:21:00",
     status: "in_consult", ktas: 4,
     chief_complaint: "fever", complaint_detail: "미열, 인후통",
@@ -393,7 +393,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
 
   // ── KTAS 5 (비응급) — 6명 ───────────────────────────────
   {
-    id: "P-10000045", mrn: "M2026-0045", name: "이○○", age: 45, sex: "M",
+    id: "P-10000045", mrn: "M2026-0045", name: "이지호", age: 45, sex: "M",
     arrived_at: "2026-05-04T12:25:00", registered_at: "2026-05-04T12:26:00",
     status: "in_consult", ktas: 5,
     chief_complaint: "other", complaint_detail: "약물 처방 받으러 옴",
@@ -401,7 +401,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000046", mrn: "M2026-0046", name: "임○○", age: 38, sex: "M",
+    id: "P-10000046", mrn: "M2026-0046", name: "임준서", age: 38, sex: "M",
     arrived_at: "2026-05-04T12:30:00", registered_at: "2026-05-04T12:31:00",
     status: "in_consult", ktas: 5,
     chief_complaint: "other", complaint_detail: "예방접종 문의",
@@ -409,7 +409,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000047", mrn: "M2026-0047", name: "전○○", age: 52, sex: "M",
+    id: "P-10000047", mrn: "M2026-0047", name: "전건우", age: 52, sex: "M",
     arrived_at: "2026-05-04T12:35:00", registered_at: "2026-05-04T12:36:00",
     status: "in_consult", ktas: 5,
     chief_complaint: "back_pain", complaint_detail: "경미한 근육통",
@@ -417,7 +417,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000048", mrn: "M2026-0048", name: "유○○", age: 60, sex: "M",
+    id: "P-10000048", mrn: "M2026-0048", name: "유현우", age: 60, sex: "M",
     arrived_at: "2026-05-04T12:40:00", registered_at: "2026-05-04T12:41:00",
     status: "arrived", ktas: 5,
     chief_complaint: "other", complaint_detail: "정기 체크업",
@@ -425,7 +425,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: ["HTN"], triaged_by: "박간호사",
   },
   {
-    id: "P-10000049", mrn: "M2026-0049", name: "권○○", age: 47, sex: "M",
+    id: "P-10000049", mrn: "M2026-0049", name: "권우진", age: 47, sex: "M",
     arrived_at: "2026-05-04T12:45:00", registered_at: "2026-05-04T12:46:00",
     status: "in_consult", ktas: 5,
     chief_complaint: "headache", complaint_detail: "스트레스성 두통",
@@ -433,7 +433,7 @@ export const DEMO_PATIENTS_50: QueuePatient[] = [
     past_history: [], triaged_by: "박간호사",
   },
   {
-    id: "P-10000050", mrn: "M2026-0050", name: "이○○", age: 41, sex: "M",
+    id: "P-10000050", mrn: "M2026-0050", name: "이정훈", age: 41, sex: "M",
     arrived_at: "2026-05-04T12:50:00", registered_at: "2026-05-04T12:51:00",
     status: "results_pending", ktas: 5,
     chief_complaint: "other", complaint_detail: "처방전 재발급",

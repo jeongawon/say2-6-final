@@ -2,7 +2,7 @@
 // 운영: Cognito JWT (cognito.ts에서 토큰 관리)
 // 데모: localStorage role 저장 (Cognito 환경변수 없을 때 fallback)
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useState, type ReactNode } from "react";
 import {
   signInWithSSO,
   signOut as cognitoSignOut,
@@ -47,34 +47,35 @@ function isCognitoConfigured(): boolean {
       && !!import.meta.env.VITE_COGNITO_CLIENT_ID;
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-
-  // 초기 로드: Cognito 토큰 → 데모 유저 순으로 복원
-  useEffect(() => {
-    // 1) Cognito 토큰 확인
-    const tokens = loadTokens();
-    if (tokens?.idToken) {
-      const payload = decodeIdToken(tokens.idToken);
-      const role = roleFromGroups(payload?.["cognito:groups"]);
-      if (payload && role) {
-        setUser({
-          id: payload.sub,
-          name: payload.name ?? payload["cognito:username"] ?? "사용자",
-          role,
-          email: payload.email,
-          idToken: tokens.idToken,
-        });
-        return;
-      }
+/** 초기 사용자 복원 — Cognito 토큰 → 데모 유저 순.
+ *  렌더 전(동기) 실행해야 새로고침 시 RequireAuth가 로그인으로 튕기지 않음. */
+function restoreUser(): User | null {
+  // 1) Cognito 토큰 확인
+  const tokens = loadTokens();
+  if (tokens?.idToken) {
+    const payload = decodeIdToken(tokens.idToken);
+    const role = roleFromGroups(payload?.["cognito:groups"]);
+    if (payload && role) {
+      return {
+        id: payload.sub,
+        name: payload.name ?? payload["cognito:username"] ?? "사용자",
+        role,
+        email: payload.email,
+        idToken: tokens.idToken,
+      };
     }
+  }
+  // 2) 데모 사용자 fallback
+  try {
+    const raw = localStorage.getItem(DEMO_STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as User;
+  } catch { /* 무시 */ }
+  return null;
+}
 
-    // 2) 데모 사용자 fallback
-    try {
-      const raw = localStorage.getItem(DEMO_STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw));
-    } catch { /* 무시 */ }
-  }, []);
+export function AuthProvider({ children }: { children: ReactNode }) {
+  // 동기 초기화 — 첫 렌더부터 로그인 상태 유지 (새로고침해도 현재 페이지 유지)
+  const [user, setUser] = useState<User | null>(() => restoreUser());
 
   function signIn() {
     if (isCognitoConfigured()) {

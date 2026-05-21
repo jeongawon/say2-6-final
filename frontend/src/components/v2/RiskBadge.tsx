@@ -4,11 +4,11 @@ import { cn } from "../../lib/cn";
 export type RiskLevel = "critical" | "urgent" | "warning" | "normal" | "analyzing";
 
 const STYLES: Record<RiskLevel, { bg: string; ring: string; icon: typeof AlertCircle; label: string }> = {
-  critical:  { bg: "bg-red-50 text-red-700",        ring: "ring-red-600/30",     icon: AlertCircle,    label: "Critical" },
-  urgent:    { bg: "bg-orange-50 text-orange-700",  ring: "ring-orange-600/30",  icon: AlertTriangle,  label: "Urgent" },
-  warning:   { bg: "bg-yellow-50 text-yellow-700",  ring: "ring-yellow-600/30",  icon: AlertTriangle,  label: "Warning" },
-  normal:    { bg: "bg-emerald-50 text-emerald-700", ring: "ring-emerald-600/30", icon: CheckCircle2,  label: "Normal" },
-  analyzing: { bg: "bg-slate-100 text-slate-600",   ring: "ring-slate-400/30",   icon: Loader2,        label: "분석중" },
+  critical:  { bg: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300",            ring: "ring-red-600/30 dark:ring-red-500/40",         icon: AlertCircle,    label: "Critical" },
+  urgent:    { bg: "bg-orange-50 text-orange-700 dark:bg-orange-500/15 dark:text-orange-300", ring: "ring-orange-600/30 dark:ring-orange-500/40",   icon: AlertTriangle,  label: "Urgent" },
+  warning:   { bg: "bg-yellow-50 text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300", ring: "ring-yellow-600/30 dark:ring-yellow-500/40",   icon: AlertTriangle,  label: "Warning" },
+  normal:    { bg: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", ring: "ring-emerald-600/30 dark:ring-emerald-500/40", icon: CheckCircle2,  label: "Normal" },
+  analyzing: { bg: "bg-slate-100 text-slate-600 dark:bg-vuno-bg dark:text-vuno-muted",        ring: "ring-slate-400/30 dark:ring-vuno-border",      icon: Loader2,        label: "분석중" },
 };
 
 interface RiskBadgeProps {

@@ -147,9 +147,10 @@ export default function WorklistPage() {
 
   return (
     <AppShell notifications={3}>
-      <div className="max-w-[1700px] mx-auto px-5 py-4 grid grid-cols-1 lg:grid-cols-[260px_1fr_290px] gap-4 items-stretch min-h-[calc(100vh-5rem)]">
+      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)]">
+      <div className="max-w-[1700px] mx-auto px-5 py-5 grid grid-cols-1 lg:grid-cols-[260px_1fr_290px] gap-5 items-stretch min-h-[calc(100vh-3.5rem)]">
         {/* ── 좌: 환자 조회 ── */}
-        <aside className="bg-white border border-slate-300 shadow-sm h-full flex flex-col">
+        <aside className="bg-white border border-slate-200 dark:bg-vuno-surface dark:border-vuno-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
           <PanelHead title="환자 조회" />
           <div className="p-4 flex-1 space-y-4 text-[13px]">
             <div>
@@ -163,13 +164,13 @@ export default function WorklistPage() {
                 onChange={(e) => setQDraft(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && runSearch()}
                 placeholder={searchBy === "reg" ? "등록번호 입력" : "환자명 입력"}
-                className="w-full h-9 px-2.5 text-[13px] border border-slate-300 focus:outline-none focus:border-brand-500"
+                className="w-full h-9 px-2.5 text-[13px] rounded-lg bg-slate-50 border border-slate-200 text-slate-900 placeholder:text-slate-400 dark:bg-vuno-bg dark:border-vuno-border dark:text-white dark:placeholder:text-vuno-dim focus:outline-none focus:bg-white dark:focus:bg-vuno-bg focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
               />
             </div>
 
             <div>
               <FilterLabel>소견 상태</FilterLabel>
-              <div className="space-y-1.5">
+              <div className="flex flex-col items-start gap-2.5">
                 <Radio label="전체" active={soGyeon === "all"} onClick={() => setSoGyeon("all")} />
                 <Radio label="작성 가능 (AI 분석 완료)" active={soGyeon === "done"} onClick={() => setSoGyeon("done")} />
                 <Radio label="검토 중 / 서명 대기" active={soGyeon === "review"} onClick={() => setSoGyeon("review")} />
@@ -190,7 +191,7 @@ export default function WorklistPage() {
           <div className="p-3 border-t border-slate-200">
             <button
               onClick={runSearch}
-              className="w-full h-10 bg-brand-600 text-white text-[13px] font-bold hover:bg-brand-700 inline-flex items-center justify-center gap-1.5"
+              className="w-full h-10 rounded-lg bg-brand-600 text-white text-[13px] font-bold hover:bg-brand-700 shadow-sm shadow-brand-600/20 inline-flex items-center justify-center gap-1.5 transition-colors"
             >
               <Search className="h-4 w-4" /> 검색
             </button>
@@ -198,16 +199,16 @@ export default function WorklistPage() {
         </aside>
 
         {/* ── 중: 환자 목록 ── */}
-        <section className="bg-white border border-slate-300 shadow-sm h-full flex flex-col min-w-0">
-          <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-            <span className="text-base font-bold text-slate-900">환자 목록</span>
-            <span className="text-xs text-slate-400">Total {filtered.length}명</span>
+        <section className="bg-white border border-slate-200 dark:bg-vuno-surface dark:border-vuno-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col min-w-0">
+          <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 dark:border-vuno-border dark:bg-vuno-bg flex items-center gap-2">
+            <span className="text-base font-bold text-slate-900 dark:text-white">환자 목록</span>
+            <span className="text-xs text-slate-400 dark:text-vuno-dim">Total {filtered.length}명</span>
           </div>
 
           <div className="flex-1 overflow-auto">
             <table className="w-full text-[14px]">
-              <thead className="sticky top-0 bg-slate-100 text-slate-600 text-[13px]">
-                <tr className="border-b border-slate-200 whitespace-nowrap">
+              <thead className="sticky top-0 bg-slate-100 text-slate-600 dark:bg-vuno-bg dark:text-vuno-muted text-[13px]">
+                <tr className="border-b border-slate-200 dark:border-vuno-border whitespace-nowrap">
                   <th className="px-3 py-3 w-12 text-left">No.</th>
                   <th className="px-3 py-3 text-left w-28">등록번호</th>
                   <th className="px-3 py-3 text-left w-24">환자명</th>
@@ -226,20 +227,20 @@ export default function WorklistPage() {
                   return (
                     <tr
                       key={p.id}
-                      className="border-b border-slate-100 hover:bg-brand-50/40 cursor-pointer"
+                      className="border-b border-slate-100 hover:bg-brand-50/40 dark:border-vuno-divider dark:hover:bg-brand-500/10 cursor-pointer"
                       onClick={() => nav(rowHref(p, sg))}
                     >
-                      <td className="px-3 py-3 text-slate-400 font-numeric whitespace-nowrap">{(page - 1) * PAGE_SIZE + i + 1}</td>
-                      <td className="px-3 py-3 font-numeric text-brand-700 underline whitespace-nowrap">{regNo(p)}</td>
-                      <td className="px-3 py-3 font-bold text-slate-900 whitespace-nowrap">{p.name}</td>
-                      <td className="px-3 py-3 text-slate-500 text-[13px] whitespace-nowrap">{p.age}세 / {p.sex === "M" ? "남" : "여"}</td>
+                      <td className="px-3 py-3 text-slate-400 dark:text-vuno-dim font-numeric whitespace-nowrap">{(page - 1) * PAGE_SIZE + i + 1}</td>
+                      <td className="px-3 py-3 font-numeric text-brand-700 dark:text-brand-300 underline whitespace-nowrap">{regNo(p)}</td>
+                      <td className="px-3 py-3 font-bold text-slate-900 dark:text-white whitespace-nowrap">{p.name}</td>
+                      <td className="px-3 py-3 text-slate-500 dark:text-vuno-muted text-[13px] whitespace-nowrap">{p.age}세 / {p.sex === "M" ? "남" : "여"}</td>
                       <td className="px-3 py-3 whitespace-nowrap">
-                        <span className={cn("inline-block px-2 py-0.5 text-[11px] font-bold text-white", meta.bg)}>
+                        <span className={cn("inline-block px-2 py-0.5 rounded text-[11px] font-bold text-white", meta.bg)}>
                           KTAS {p.ktas}
                         </span>
                       </td>
-                      <td className="px-3 py-3 text-slate-600 text-[13px] max-w-[280px] truncate">{p.chief}</td>
-                      <td className="px-3 py-3 text-slate-500 text-[13px] font-numeric whitespace-nowrap">{fmtTime(p.registeredAt)}</td>
+                      <td className="px-3 py-3 text-slate-600 dark:text-vuno-muted text-[13px] max-w-[280px] truncate">{p.chief}</td>
+                      <td className="px-3 py-3 text-slate-500 dark:text-vuno-muted text-[13px] font-numeric whitespace-nowrap">{fmtTime(p.registeredAt)}</td>
                       <td className="px-3 py-3 text-center whitespace-nowrap">
                         <ExamStatusBadge exam={es} soGyeon={sg} />
                       </td>
@@ -249,13 +250,13 @@ export default function WorklistPage() {
               </tbody>
             </table>
             {pageRows.length === 0 && (
-              <div className="py-16 text-center text-sm text-slate-400">조건에 맞는 환자가 없습니다.</div>
+              <div className="py-16 text-center text-sm text-slate-400 dark:text-vuno-dim">조건에 맞는 환자가 없습니다.</div>
             )}
           </div>
 
           {/* 페이지네이션 */}
-          <div className="px-4 py-2.5 border-t border-slate-200 flex items-center gap-1.5">
-            <span className="text-xs text-slate-400 mr-auto">
+          <div className="px-4 py-2.5 border-t border-slate-200 dark:border-vuno-border flex items-center gap-1.5">
+            <span className="text-xs text-slate-400 dark:text-vuno-dim mr-auto">
               {filtered.length}명 중 {pageRows.length}명 표시
             </span>
             <PageBtn onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1}>
@@ -266,8 +267,8 @@ export default function WorklistPage() {
                 key={n}
                 onClick={() => setPage(n)}
                 className={cn(
-                  "h-7 w-7 text-xs font-bold transition-colors",
-                  page === n ? "bg-brand-600 text-white" : "bg-white text-slate-600 border border-slate-300 hover:bg-slate-50",
+                  "h-7 w-7 rounded-lg text-xs font-bold transition-colors",
+                  page === n ? "bg-brand-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 dark:bg-vuno-bg dark:text-vuno-muted dark:border-vuno-border dark:hover:bg-vuno-elevated",
                 )}
               >
                 {n}
@@ -280,24 +281,25 @@ export default function WorklistPage() {
         </section>
 
         {/* ── 우: 검사 진행 현황 ── */}
-        <aside className="bg-white border border-slate-300 shadow-sm h-full flex flex-col">
+        <aside className="bg-white border border-slate-200 dark:bg-vuno-surface dark:border-vuno-border rounded-xl shadow-sm overflow-hidden h-full flex flex-col">
           <PanelHead title="검사 진행 현황" icon={Activity} />
-          <div className="flex-1 overflow-auto">
-            <ExamGroup status="waiting" patients={examGroups.waiting} defaultOpen onOpen={(p) => nav(rowHref(p, soGyeonOf(p, backendStatus)))} />
+          <div className="flex-1 overflow-auto p-3 space-y-2.5">
+            <ExamGroup status="waiting" patients={examGroups.waiting} onOpen={(p) => nav(rowHref(p, soGyeonOf(p, backendStatus)))} />
             <ExamGroup status="inProgress" patients={examGroups.inProgress} onOpen={(p) => nav(rowHref(p, soGyeonOf(p, backendStatus)))} />
             <ExamGroup status="done" patients={examGroups.done} onOpen={(p) => nav(rowHref(p, soGyeonOf(p, backendStatus)))} />
           </div>
         </aside>
+      </div>
       </div>
     </AppShell>
   );
 }
 
 /* ── 검사 진행 현황 — 상태 그룹 ── */
-const EXAM_META: Record<ExamStatus, { ko: string; icon: typeof Clock; head: string; dot: string }> = {
-  waiting:    { ko: "검사 대기", icon: Clock,        head: "bg-slate-100 text-slate-700",  dot: "bg-slate-400" },
-  inProgress: { ko: "검사 중",   icon: Loader2,      head: "bg-amber-50 text-amber-700",   dot: "bg-amber-500" },
-  done:       { ko: "검사 완료", icon: CheckCircle2, head: "bg-emerald-50 text-emerald-700", dot: "bg-emerald-500" },
+const EXAM_META: Record<ExamStatus, { ko: string; icon: typeof Clock; head: string; ring: string; dot: string }> = {
+  waiting:    { ko: "검사 대기", icon: Clock,        head: "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300",       ring: "border-brand-300 dark:border-brand-500/40",     dot: "bg-brand-500" },
+  inProgress: { ko: "검사 중",   icon: Loader2,      head: "bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300",       ring: "border-amber-300 dark:border-amber-500/40",     dot: "bg-amber-500" },
+  done:       { ko: "검사 완료", icon: CheckCircle2, head: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300", ring: "border-emerald-300 dark:border-emerald-500/40", dot: "bg-emerald-500" },
 };
 
 function ExamGroup({
@@ -311,40 +313,46 @@ function ExamGroup({
   const [open, setOpen] = useState(defaultOpen ?? false);
   const m = EXAM_META[status];
   return (
-    <div>
+    <div className={cn(
+      "rounded-xl border overflow-hidden transition-shadow",
+      m.ring,
+      open && "shadow-sm",
+    )}>
       <button
         onClick={() => setOpen((o) => !o)}
-        className={cn("w-full sticky top-0 z-10 px-3 py-2.5 flex items-center gap-1.5 border-b border-slate-200", m.head)}
+        className={cn("w-full px-3.5 py-3 flex items-center gap-2 transition-colors", m.head)}
       >
         <m.icon className={cn("h-4 w-4", status === "inProgress" && "animate-spin")} />
-        <span className="text-[13px] font-bold">{m.ko}</span>
-        <span className="text-[12px] font-numeric font-bold">{patients.length}</span>
+        <span className="text-sm font-bold">{m.ko}</span>
+        <span className="text-[13px] font-numeric font-bold">{patients.length}</span>
         <ChevronRight className={cn("ml-auto h-4 w-4 transition-transform", open && "rotate-90")} />
       </button>
       {open && (
-        patients.length === 0 ? (
-          <div className="px-3 py-3 text-[12px] text-slate-400 text-center">해당 환자 없음</div>
-        ) : (
-          patients.map((p) => {
-            const meta = KTAS_META[p.ktas as KTAS];
-            return (
-              <button
-                key={p.id}
-                onClick={() => onOpen(p)}
-                className="w-full flex items-center gap-2 px-3 py-2 border-b border-slate-100 hover:bg-slate-50 text-left"
-              >
-                <span className={cn("inline-block px-1.5 py-0.5 text-[10px] font-bold text-white flex-shrink-0", meta.bg)}>
-                  KTAS {p.ktas}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-bold text-slate-900 truncate">{p.name}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{p.chief}</div>
-                </div>
-                <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", m.dot)} />
-              </button>
-            );
-          })
-        )
+        <div className="bg-white border-t border-slate-100 dark:bg-vuno-surface dark:border-vuno-border">
+          {patients.length === 0 ? (
+            <div className="px-3.5 py-3 text-[12px] text-slate-400 dark:text-vuno-dim text-center">해당 환자 없음</div>
+          ) : (
+            patients.map((p) => {
+              const meta = KTAS_META[p.ktas as KTAS];
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => onOpen(p)}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 border-b border-slate-100 last:border-b-0 hover:bg-brand-50/40 dark:border-vuno-divider dark:hover:bg-brand-500/10 text-left transition-colors"
+                >
+                  <span className={cn("inline-block px-1.5 py-0.5 rounded text-[10px] font-bold text-white flex-shrink-0", meta.bg)}>
+                    KTAS {p.ktas}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[13px] font-bold text-slate-900 dark:text-white truncate">{p.name}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-vuno-muted truncate">{p.chief}</div>
+                  </div>
+                  <span className={cn("h-1.5 w-1.5 rounded-full flex-shrink-0", m.dot)} />
+                </button>
+              );
+            })
+          )}
+        </div>
       )}
     </div>
   );
@@ -353,15 +361,15 @@ function ExamGroup({
 /* ── 헬퍼 컴포넌트 ── */
 function PanelHead({ title, icon: Icon }: { title: string; icon?: typeof Activity }) {
   return (
-    <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 flex items-center gap-2">
-      {Icon && <Icon className="h-4 w-4 text-slate-600" />}
-      <span className="text-base font-bold text-slate-900">{title}</span>
+    <div className="px-4 py-2.5 border-b border-slate-200 bg-slate-50 dark:border-vuno-border dark:bg-vuno-bg flex items-center gap-2">
+      {Icon && <Icon className="h-4 w-4 text-slate-600 dark:text-vuno-muted" />}
+      <span className="text-base font-bold text-slate-900 dark:text-white">{title}</span>
     </div>
   );
 }
 
 function FilterLabel({ children }: { children: React.ReactNode }) {
-  return <div className="text-xs font-bold text-slate-500 mb-1.5">{children}</div>;
+  return <div className="text-xs font-bold text-slate-500 dark:text-vuno-muted mb-1.5">{children}</div>;
 }
 
 function Radio({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
@@ -369,11 +377,11 @@ function Radio({ label, active, onClick }: { label: string; active: boolean; onC
     <button onClick={onClick} className="inline-flex items-center gap-1.5 text-[13px]">
       <span className={cn(
         "h-3.5 w-3.5 rounded-full border-2 grid place-items-center",
-        active ? "border-brand-600" : "border-slate-300",
+        active ? "border-brand-600 dark:border-brand-400" : "border-slate-300 dark:border-vuno-border",
       )}>
-        {active && <span className="h-1.5 w-1.5 rounded-full bg-brand-600" />}
+        {active && <span className="h-1.5 w-1.5 rounded-full bg-brand-600 dark:bg-brand-400" />}
       </span>
-      <span className={active ? "text-slate-900 font-semibold" : "text-slate-600"}>{label}</span>
+      <span className={active ? "text-slate-900 dark:text-white font-semibold" : "text-slate-600 dark:text-vuno-muted"}>{label}</span>
     </button>
   );
 }
@@ -383,10 +391,10 @@ function KtasChip({ label, active, onClick, bg }: { label: string; active: boole
     <button
       onClick={onClick}
       className={cn(
-        "h-8 text-[11px] font-bold border transition-colors",
+        "h-8 rounded-lg text-[11px] font-bold border transition-colors",
         active
           ? bg ? cn(bg, "text-white border-transparent") : "bg-brand-600 text-white border-brand-600"
-          : "bg-white text-slate-600 border-slate-300 hover:bg-slate-50",
+          : "bg-slate-50 text-slate-600 border-slate-200 hover:bg-white hover:border-slate-300 dark:bg-vuno-bg dark:text-vuno-muted dark:border-vuno-border dark:hover:bg-vuno-elevated",
       )}
     >
       {label}
@@ -399,7 +407,7 @@ function PageBtn({ children, onClick, disabled }: { children: React.ReactNode; o
     <button
       onClick={onClick}
       disabled={disabled}
-      className="h-7 w-7 grid place-items-center border border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+      className="h-7 w-7 rounded-lg grid place-items-center border border-slate-200 text-slate-500 hover:bg-slate-50 dark:border-vuno-border dark:text-vuno-muted dark:hover:bg-vuno-elevated disabled:opacity-40 disabled:cursor-not-allowed"
     >
       {children}
     </button>
@@ -413,13 +421,13 @@ function PageBtn({ children, onClick, disabled }: { children: React.ReactNode; o
 //   · 검사 대기 → slate "검사 대기" (AI 분석 페이지로 이동)
 function ExamStatusBadge({ exam, soGyeon }: { exam: ExamStatus; soGyeon: SoGyeon }) {
   if (soGyeon === "signed") {
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-emerald-100 border border-emerald-400 text-emerald-700">✓ 서명 완료</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-100 border border-emerald-400 text-emerald-700">✓ 서명 완료</span>;
   }
   if (exam === "done") {
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-emerald-50 border border-emerald-300 text-emerald-700">✓ 검사 완료</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-emerald-50 border border-emerald-300 text-emerald-700">✓ 검사 완료</span>;
   }
   if (exam === "inProgress") {
-    return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-amber-100 border border-amber-400 text-amber-700 animate-pulse">분석 중</span>;
+    return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-amber-100 border border-amber-400 text-amber-700 animate-pulse">분석 중</span>;
   }
-  return <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-bold bg-slate-100 border border-slate-300 text-slate-600">검사 대기</span>;
+  return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-bold bg-slate-100 border border-slate-300 text-slate-600">검사 대기</span>;
 }

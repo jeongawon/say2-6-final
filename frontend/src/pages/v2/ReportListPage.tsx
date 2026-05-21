@@ -14,10 +14,10 @@ import { cn } from "../../lib/cn";
 type ReportStatus = "analyzing" | "ready" | "review" | "signed";
 
 const STATUS_META: Record<ReportStatus, { ko: string; cls: string }> = {
-  analyzing: { ko: "AI 분석 중", cls: "bg-amber-50 border-amber-300 text-amber-700" },
-  ready:     { ko: "작성 가능",  cls: "bg-blue-50 border-blue-300 text-blue-700" },
-  review:    { ko: "검토·서명 대기", cls: "bg-purple-50 border-purple-300 text-purple-700" },
-  signed:    { ko: "서명 완료",  cls: "bg-emerald-50 border-emerald-300 text-emerald-700" },
+  analyzing: { ko: "AI 분석 중", cls: "bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-500/15 dark:border-amber-500/40 dark:text-amber-300" },
+  ready:     { ko: "작성 가능",  cls: "bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-500/15 dark:border-blue-500/40 dark:text-blue-300" },
+  review:    { ko: "검토·서명 대기", cls: "bg-purple-50 border-purple-300 text-purple-700 dark:bg-purple-500/15 dark:border-purple-500/40 dark:text-purple-300" },
+  signed:    { ko: "서명 완료",  cls: "bg-emerald-50 border-emerald-300 text-emerald-700 dark:bg-emerald-500/15 dark:border-emerald-500/40 dark:text-emerald-300" },
 };
 
 // 우선순위: 백엔드 diagnostic_reports.status → 로컬 캐시(데모 환자) → demoStore 추정.
@@ -134,13 +134,14 @@ export default function ReportListPage() {
 
   return (
     <AppShell notifications={counts.review}>
+      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)]">
       <div className="max-w-[1500px] mx-auto px-6 py-6">
         {/* 헤더 */}
         <div className="mb-5">
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
             <FileText className="h-6 w-6 text-brand-600" /> 종합소견서
           </h1>
-          <p className="text-[15px] text-slate-500 mt-1">환자별 AI 종합 소견서 작성 · 검토 · 서명</p>
+          <p className="text-[15px] text-slate-500 dark:text-vuno-muted mt-1">환자별 AI 종합 소견서 작성 · 검토 · 서명</p>
         </div>
 
         {/* 필터 + 검색 */}
@@ -151,16 +152,16 @@ export default function ReportListPage() {
                 key={f}
                 onClick={() => setFilter(f)}
                 className={cn(
-                  "h-9 px-3.5 text-sm font-medium border transition-colors inline-flex items-center gap-1.5",
+                  "h-9 px-3.5 rounded-lg text-sm font-medium border transition-colors inline-flex items-center gap-1.5",
                   filter === f
                     ? "bg-brand-600 text-white border-brand-600"
-                    : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50",
+                    : "bg-slate-50 dark:bg-vuno-surface text-slate-700 dark:text-slate-200 border-slate-200 dark:border-vuno-border hover:bg-white dark:hover:bg-vuno-elevated hover:border-slate-300",
                 )}
               >
                 {FILTER_LABELS[f]}
                 <span className={cn(
                   "text-[11px] font-numeric px-1",
-                  filter === f ? "text-white/80" : "text-slate-400",
+                  filter === f ? "text-white/80" : "text-slate-400 dark:text-vuno-dim",
                 )}>
                   {counts[f]}
                 </span>
@@ -168,21 +169,21 @@ export default function ReportListPage() {
             ))}
           </div>
           <div className="md:ml-auto relative md:w-72">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-vuno-dim" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="환자 검색 (이름, ID, 증상)…"
-              className="w-full h-9 pl-9 pr-3 border border-slate-300 bg-white text-sm focus:outline-none focus:border-slate-500"
+              className="w-full h-9 pl-9 pr-3 rounded-lg border border-slate-200 bg-slate-50 text-slate-900 placeholder:text-slate-400 dark:border-vuno-border dark:bg-vuno-bg dark:text-white dark:placeholder:text-vuno-dim text-sm focus:outline-none focus:bg-white dark:focus:bg-vuno-bg focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors"
             />
           </div>
         </div>
 
         {/* 목록 테이블 */}
-        <div className="bg-white border border-slate-300 shadow-sm">
-          <table className="w-full text-[15px]">
+        <div className="bg-white dark:bg-vuno-surface border border-slate-200 dark:border-vuno-border rounded-xl shadow-sm overflow-hidden">
+          <table className="w-full text-[14px]">
             <thead>
-              <tr className="bg-slate-50 text-slate-600 text-[13px] border-b border-slate-200">
+              <tr className="bg-slate-50 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted text-[13px] border-b border-slate-200 dark:border-vuno-border">
                 <th className="text-left px-4 py-3 font-semibold w-28">KTAS</th>
                 <th className="text-left px-4 py-3 font-semibold">환자</th>
                 <th className="text-left px-4 py-3 font-semibold">등록번호</th>
@@ -200,39 +201,39 @@ export default function ReportListPage() {
                   <tr
                     key={p.id}
                     onClick={() => openReport(p, status)}
-                    className="border-b border-slate-100 hover:bg-slate-50 cursor-pointer"
+                    className="border-b border-slate-100 dark:border-vuno-divider hover:bg-slate-50 dark:hover:bg-vuno-elevated cursor-pointer"
                   >
                     <td className="px-4 py-3">
-                      <span className={cn("inline-block px-2 py-0.5 text-[12px] font-bold text-white", meta.bg)}>
+                      <span className={cn("inline-block px-2 py-0.5 rounded text-[12px] font-bold text-white", meta.bg)}>
                         KTAS {p.ktas}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-bold text-slate-900 text-[15px]">{p.name}</div>
-                      <div className="text-[12px] text-slate-400">{p.sex === "M" ? "남" : "여"} / {p.age}세</div>
+                      <div className="font-bold text-slate-900 dark:text-white text-[15px]">{p.name}</div>
+                      <div className="text-[12px] text-slate-400 dark:text-vuno-dim">{p.sex === "M" ? "남" : "여"} / {p.age}세</div>
                     </td>
-                    <td className="px-4 py-3 font-numeric text-slate-500 text-[13px]">
+                    <td className="px-4 py-3 font-numeric text-slate-500 dark:text-vuno-muted text-[13px]">
                       {p.mimic?.subject_id ?? p.mrn ?? p.id.slice(0, 8)}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 text-[13px] max-w-[280px] truncate">{p.chief}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-vuno-muted text-[13px] max-w-[280px] truncate">{p.chief}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={cn(
                         "text-[13px] font-bold",
-                        p.aiStatus === "done" ? "text-emerald-600" :
-                        p.aiStatus === "analyzing" ? "text-amber-600" : "text-slate-400",
+                        p.aiStatus === "done" ? "text-emerald-600 dark:text-emerald-400" :
+                        p.aiStatus === "analyzing" ? "text-amber-600 dark:text-amber-400" : "text-slate-400 dark:text-vuno-dim",
                       )}>
                         {p.aiStatus === "done" ? "완료" : p.aiStatus === "analyzing" ? "진행 중" : "대기"}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <span className={cn("inline-block px-2.5 py-1 text-[12px] font-bold border", sm.cls)}>
+                      <span className={cn("inline-block px-2.5 py-1 rounded-md text-[12px] font-bold border", sm.cls)}>
                         {sm.ko}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
                       <span className={cn(
                         "inline-flex items-center gap-0.5 text-[13px] font-bold",
-                        status === "analyzing" ? "text-slate-400" : "text-brand-600",
+                        status === "analyzing" ? "text-slate-400 dark:text-vuno-dim" : "text-brand-600",
                       )}>
                         소견서 <ChevronRight className="h-4 w-4" />
                       </span>
@@ -243,9 +244,10 @@ export default function ReportListPage() {
             </tbody>
           </table>
           {rows.length === 0 && (
-            <div className="py-16 text-center text-slate-400 text-sm">조건에 맞는 환자가 없습니다.</div>
+            <div className="py-16 text-center text-slate-400 dark:text-vuno-dim text-sm">조건에 맞는 환자가 없습니다.</div>
           )}
         </div>
+      </div>
       </div>
     </AppShell>
   );

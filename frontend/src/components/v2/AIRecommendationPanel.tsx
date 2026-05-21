@@ -51,28 +51,28 @@ export function AIRecommendationPanel({ data, onApprove, onReject, onEdit, onOpe
             <Sparkles className="h-4 w-4 text-white" />
           </div>
           <div>
-            <div className="text-sm font-bold text-brand-700">AI 권고</div>
-            <div className="text-xs text-slate-500">say-6 멀티모달 분석</div>
+            <div className="text-sm font-bold text-brand-700 dark:text-brand-300">AI 권고</div>
+            <div className="text-xs text-slate-500 dark:text-vuno-muted">say-6 멀티모달 분석</div>
           </div>
         </div>
-        <span className="text-xs text-slate-500 font-numeric">v1.2</span>
+        <span className="text-xs text-slate-500 dark:text-vuno-muted font-numeric">v1.2</span>
       </header>
 
       {/* 종합 판정 */}
       <section>
-        <div className="text-xs font-medium text-slate-500 mb-2">📊 종합 판정</div>
+        <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted mb-2">📊 종합 판정</div>
         <div className="space-y-2">
           <RiskBadge level={data.risk} size="lg" />
-          <p className="text-base font-semibold text-slate-900">{data.diagnosis}</p>
+          <p className="text-base font-semibold text-slate-900 dark:text-white">{data.diagnosis}</p>
         </div>
       </section>
 
       {/* 근거 */}
       <section>
-        <div className="text-xs font-medium text-slate-500 mb-2">근거</div>
+        <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted mb-2">근거</div>
         <ul className="space-y-1.5">
           {data.reasons.map((r, i) => (
-            <li key={i} className="flex gap-2 text-sm text-slate-700">
+            <li key={i} className="flex gap-2 text-sm text-slate-700 dark:text-slate-200">
               <span className="text-brand-500 mt-0.5">•</span>
               <span>{r}</span>
             </li>
@@ -83,10 +83,10 @@ export function AIRecommendationPanel({ data, onApprove, onReject, onEdit, onOpe
       {/* 신뢰도 */}
       <section>
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs font-medium text-slate-500">신뢰도</span>
-          <span className="text-xs font-numeric font-semibold text-slate-700">{confidencePct}%</span>
+          <span className="text-xs font-medium text-slate-500 dark:text-vuno-muted">신뢰도</span>
+          <span className="text-xs font-numeric font-semibold text-slate-700 dark:text-slate-200">{confidencePct}%</span>
         </div>
-        <div className="h-2 rounded-full bg-slate-200 overflow-hidden">
+        <div className="h-2 rounded-full bg-slate-200 dark:bg-vuno-elevated overflow-hidden">
           <div
             className={cn("h-full rounded-full transition-all", confidenceColor)}
             style={{ width: `${confidencePct}%` }}
@@ -96,10 +96,10 @@ export function AIRecommendationPanel({ data, onApprove, onReject, onEdit, onOpe
 
       {/* 권고 */}
       <section>
-        <div className="text-xs font-medium text-slate-500 mb-2">💡 권고</div>
+        <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted mb-2">💡 권고</div>
         <ol className="space-y-1.5">
           {data.recommendations.map((r, i) => (
-            <li key={i} className="flex gap-2 text-sm text-slate-700">
+            <li key={i} className="flex gap-2 text-sm text-slate-700 dark:text-slate-200">
               <span className="font-numeric font-semibold text-brand-600 min-w-[1.25rem]">{i + 1}.</span>
               <span>{r}</span>
             </li>
@@ -110,17 +110,17 @@ export function AIRecommendationPanel({ data, onApprove, onReject, onEdit, onOpe
       {/* 유사 사례 */}
       {data.similarCases.length > 0 && (
         <section>
-          <div className="text-xs font-medium text-slate-500 mb-2">📚 유사 사례</div>
+          <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted mb-2">📚 유사 사례</div>
           <div className="flex flex-wrap gap-2">
             {data.similarCases.map((c) => (
               <button
                 key={c.id}
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white border border-slate-200 text-xs hover:border-brand-400 transition-colors"
+                className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-white dark:bg-vuno-surface border border-slate-200 dark:border-vuno-border text-xs hover:border-brand-400 transition-colors"
               >
                 <span className="font-numeric">{c.id}</span>
-                <span className="text-slate-400">·</span>
-                <span className="text-brand-600 font-medium">{Math.round(c.similarity * 100)}%</span>
-                <ExternalLink className="h-3 w-3 text-slate-400" />
+                <span className="text-slate-400 dark:text-vuno-dim">·</span>
+                <span className="text-brand-600 dark:text-brand-300 font-medium">{Math.round(c.similarity * 100)}%</span>
+                <ExternalLink className="h-3 w-3 text-slate-400 dark:text-vuno-dim" />
               </button>
             ))}
           </div>
@@ -130,9 +130,9 @@ export function AIRecommendationPanel({ data, onApprove, onReject, onEdit, onOpe
       {/* 의사 결정 */}
       <section className="pt-3 border-t border-ai-border space-y-2">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-medium text-slate-500">의사 결정</div>
+          <div className="text-xs font-medium text-slate-500 dark:text-vuno-muted">의사 결정</div>
           {!canDecide && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400">
+            <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-vuno-dim">
               <Lock className="h-3 w-3" />
               의사 권한 필요
             </span>

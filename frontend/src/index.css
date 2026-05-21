@@ -149,6 +149,12 @@
   color: #1A1A1A;
 }
 
+/* 다크모드 토글 ON — 진료 화면(.demo-root) 다크 베이스로 전환 */
+.dark .v2-root.demo-root {
+  background-color: #0F172A;
+  color: #F1F5F9;
+}
+
 .v2-root code,
 .v2-root .font-numeric,
 .v2-root [class*="numeric"] {

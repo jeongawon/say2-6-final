@@ -126,7 +126,7 @@ export default function ReportEditorPage() {
   if (!patient) {
     return (
       <AppShell>
-        <div className="max-w-md mx-auto py-20 text-center text-slate-500">환자를 찾을 수 없습니다.</div>
+        <div className="max-w-md mx-auto py-20 text-center text-slate-500 dark:text-vuno-muted">환자를 찾을 수 없습니다.</div>
       </AppShell>
     );
   }
@@ -304,12 +304,24 @@ function buildExamData(patient: DemoPatient): ExamData {
 /* ═════════════════════════════════════════════════════════
    PANE 1 — 검사 결과 (수치형 / 서술형)
    ═════════════════════════════════════════════════════════ */
+// AI가 실제 판독한 모달 = recommendation.reasons에 "ECG:/CXR:/LAB:" 접두사가 있는 것.
+// (요청·완료된 검사만 검사결과/AI 판독결과에 노출 — 미요청 모달은 숨김)
+function readModalsOf(p: DemoPatient): Set<ModalKey> {
+  const set = new Set<ModalKey>();
+  p.recommendation?.reasons.forEach((r) => {
+    const m = r.match(/^(ECG|CXR|LAB)\s*[:：]/);
+    if (m) set.add(m[1] as ModalKey);
+  });
+  return set;
+}
+
 function PaneExamResults({
   patient, modalResults,
 }: {
   patient: DemoPatient;
   modalResults: ModalResults | null;
 }) {
+  const read = readModalsOf(patient);
   const data = useMemo(() => buildExamData(patient), [patient]);
   const [view, setView] = useState<"numeric" | "narrative">("numeric");
   const [modalKind, setModalKind] = useState<ModalKey | null>(null);
@@ -329,8 +341,9 @@ function PaneExamResults({
       title="검사 결과"
       subtitle="Examination Results"
       icon={ClipboardCheck}
+      tone="gray"
       headerRight={
-        <div className="flex border border-white/30 overflow-hidden">
+        <div className="flex border border-slate-300 dark:border-vuno-border rounded-lg overflow-hidden">
           {([
             { key: "numeric", label: "수치형" },
             { key: "narrative", label: "서술형" },
@@ -340,7 +353,9 @@ function PaneExamResults({
               onClick={() => setView(t.key)}
               className={cn(
                 "px-2.5 py-1 text-[11px] font-bold transition-colors whitespace-nowrap",
-                view === t.key ? "bg-white text-slate-900" : "bg-transparent text-white/70 hover:bg-white/10",
+                view === t.key
+                  ? "bg-slate-700 text-white dark:bg-vuno-elevated"
+                  : "bg-white text-slate-500 hover:bg-slate-50 dark:bg-vuno-surface dark:text-vuno-muted dark:hover:bg-vuno-elevated",
               )}
             >
               {t.label}
@@ -356,36 +371,37 @@ function PaneExamResults({
       {view === "numeric" ? (
         <table className="w-full text-[12px] border-collapse mb-4">
           <thead>
-            <tr className="bg-slate-100 text-slate-600 whitespace-nowrap">
-              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">항목</th>
-              <th className="text-right px-2 py-1.5 font-semibold border border-slate-200">결과</th>
-              <th className="text-center px-2 py-1.5 font-semibold border border-slate-200 w-20">판정</th>
-              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">참고치</th>
+            <tr className="bg-slate-100 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted whitespace-nowrap">
+              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">항목</th>
+              <th className="text-right px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">결과</th>
+              <th className="text-center px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border w-20">판정</th>
+              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">참고치</th>
             </tr>
           </thead>
           <tbody>
             {vitalRows.map((r) => (
-              <tr key={r.name} className="hover:bg-slate-50">
-                <td className="px-2 py-1.5 border border-slate-200 text-slate-700 whitespace-nowrap">{r.name}</td>
-                <td className={cn("px-2 py-1.5 border border-slate-200 text-right font-numeric font-bold whitespace-nowrap",
-                  r.flag ? "text-red-600" : "text-slate-900")}>
-                  {r.value ?? "—"}<span className="text-[10px] font-normal text-slate-400 ml-0.5">{r.unit}</span>
+              <tr key={r.name} className="hover:bg-slate-50 dark:hover:bg-vuno-elevated">
+                <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-700 dark:text-slate-200 whitespace-nowrap">{r.name}</td>
+                <td className={cn("px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-right font-numeric font-bold whitespace-nowrap",
+                  r.flag ? "text-red-600" : "text-slate-900 dark:text-white")}>
+                  {r.value ?? "—"}<span className="text-[10px] font-normal text-slate-400 dark:text-vuno-dim ml-0.5">{r.unit}</span>
                 </td>
-                <td className="px-2 py-1.5 border border-slate-200 text-center whitespace-nowrap">
+                <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-center whitespace-nowrap">
                   {r.flag === "H" ? <span className="text-red-600 font-bold">H · 높음</span>
                     : r.flag === "L" ? <span className="text-blue-600 font-bold">L · 낮음</span>
                     : <span className="text-emerald-600 font-medium">정상</span>}
                 </td>
-                <td className="px-2 py-1.5 border border-slate-200 text-slate-500 font-numeric whitespace-nowrap">{r.ref}</td>
+                <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-500 dark:text-vuno-muted font-numeric whitespace-nowrap">{r.ref}</td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 mb-4">{data.vitalNarrative}</p>
+        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.vitalNarrative}</p>
       )}
 
       {/* ─── ECG ─── */}
+      {read.has("ECG") && (<>
       <SectionLabel
         action={<SheetButton onClick={() => setModalKind("ECG")} live={!!modalResults?.ECG} />}
       >
@@ -394,34 +410,38 @@ function PaneExamResults({
       {view === "numeric" ? (
         <div className="grid grid-cols-2 gap-1.5 mb-4">
           {data.ecgMeasures.map(([k, val]) => (
-            <div key={k} className="bg-slate-50 border border-slate-200 px-2 py-1.5">
-              <div className="text-[10px] text-slate-500 whitespace-nowrap">{k}</div>
-              <div className="text-[13px] font-numeric font-bold text-slate-900 whitespace-nowrap">{val}</div>
+            <div key={k} className="bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border px-2 py-1.5">
+              <div className="text-[10px] text-slate-500 dark:text-vuno-muted whitespace-nowrap">{k}</div>
+              <div className="text-[13px] font-numeric font-bold text-slate-900 dark:text-white whitespace-nowrap">{val}</div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 mb-4">{data.ecgNarrative}</p>
+        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.ecgNarrative}</p>
       )}
+      </>)}
 
       {/* ─── CXR ─── */}
+      {read.has("CXR") && (<>
       <SectionLabel
         action={<SheetButton onClick={() => setModalKind("CXR")} live={!!modalResults?.CXR} />}
       >
         흉부 X-ray (CXR)
       </SectionLabel>
       {view === "numeric" ? (
-        <div className="mb-4 border border-slate-200 bg-slate-50 px-2.5 py-2 flex items-start gap-2">
-          <ImageIcon className="h-4 w-4 text-slate-400 flex-shrink-0 mt-0.5" />
-          <span className="text-[11px] text-slate-500 leading-relaxed">
-            영상 검사 — 수치 데이터 없음. 판독 결과는 <b className="text-slate-700">검사결과지</b>에서 확인하세요.
+        <div className="mb-4 border border-slate-200 dark:border-vuno-border bg-slate-50 dark:bg-vuno-bg px-2.5 py-2 flex items-start gap-2">
+          <ImageIcon className="h-4 w-4 text-slate-400 dark:text-vuno-dim flex-shrink-0 mt-0.5" />
+          <span className="text-[11px] text-slate-500 dark:text-vuno-muted leading-relaxed">
+            영상 검사 — 수치 데이터 없음. 판독 결과는 <b className="text-slate-700 dark:text-slate-200">검사결과지</b>에서 확인하세요.
           </span>
         </div>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 mb-4">{data.cxrNarrative}</p>
+        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.cxrNarrative}</p>
       )}
+      </>)}
 
       {/* ─── LAB ─── */}
+      {read.has("LAB") && (<>
       <SectionLabel
         hint="응급 혈액검사 · 별도 채혈 결과"
         action={<SheetButton onClick={() => setModalKind("LAB")} live={!!modalResults?.LAB} />}
@@ -431,28 +451,29 @@ function PaneExamResults({
       {view === "numeric" ? (
         <table className="w-full text-[12px] border-collapse">
           <thead>
-            <tr className="bg-slate-100 text-slate-600 whitespace-nowrap">
-              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">항목</th>
-              <th className="text-right px-2 py-1.5 font-semibold border border-slate-200">결과</th>
-              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">참고치</th>
+            <tr className="bg-slate-100 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted whitespace-nowrap">
+              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">항목</th>
+              <th className="text-right px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">결과</th>
+              <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">참고치</th>
             </tr>
           </thead>
           <tbody>
             {data.labRows.map(([name, val, flag, ref]) => (
-              <tr key={name} className="hover:bg-slate-50">
-                <td className="px-2 py-1.5 border border-slate-200 text-slate-700 whitespace-nowrap">{name}</td>
-                <td className={cn("px-2 py-1.5 border border-slate-200 text-right font-numeric font-bold whitespace-nowrap",
-                  flag ? "text-red-600" : "text-slate-900")}>
+              <tr key={name} className="hover:bg-slate-50 dark:hover:bg-vuno-elevated">
+                <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-700 dark:text-slate-200 whitespace-nowrap">{name}</td>
+                <td className={cn("px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-right font-numeric font-bold whitespace-nowrap",
+                  flag ? "text-red-600" : "text-slate-900 dark:text-white")}>
                   {val}{flag && <span className="ml-1 text-red-600">{flag}</span>}
                 </td>
-                <td className="px-2 py-1.5 border border-slate-200 text-slate-500 font-numeric whitespace-nowrap">{ref}</td>
+                <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-500 dark:text-vuno-muted font-numeric whitespace-nowrap">{ref}</td>
               </tr>
             ))}
           </tbody>
         </table>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700">{data.labNarrative}</p>
+        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200">{data.labNarrative}</p>
       )}
+      </>)}
 
       {modalKind && (
         <ExamResultModal
@@ -518,25 +539,25 @@ function ExamResultModal({
     >
       <div
         className={cn(
-          "bg-white w-full max-h-[90vh] overflow-auto border border-slate-300 shadow-2xl",
+          "bg-white dark:bg-vuno-surface w-full max-h-[90vh] overflow-auto border border-slate-300 dark:border-vuno-border shadow-2xl",
           wide ? "max-w-4xl" : "max-w-2xl",
         )}
         onClick={(e) => e.stopPropagation()}
       >
         {/* 헤더 */}
-        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-300 bg-slate-50 sticky top-0 z-10">
+        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-300 dark:border-vuno-border bg-slate-50 dark:bg-vuno-bg sticky top-0 z-10">
           <FileText className="h-4 w-4 text-vuno-cyanDim" />
-          <span className="text-sm font-bold text-slate-900">{title}</span>
+          <span className="text-sm font-bold text-slate-900 dark:text-white">{title}</span>
           {hasBackend ? (
-            <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold border bg-emerald-50 border-emerald-300 text-emerald-700">
+            <span className="ml-1 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-bold border bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> 백엔드 실시간
             </span>
           ) : (
-            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold border bg-slate-100 border-slate-300 text-slate-500">
+            <span className="ml-1 px-1.5 py-0.5 text-[10px] font-bold border bg-slate-100 dark:bg-vuno-bg border-slate-300 dark:border-vuno-border text-slate-500 dark:text-vuno-muted">
               데모 데이터
             </span>
           )}
-          <button onClick={onClose} className="ml-auto text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="ml-auto text-slate-400 dark:text-vuno-dim hover:text-slate-700 dark:hover:text-slate-200">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -544,14 +565,14 @@ function ExamResultModal({
         {hasBackend ? (
           /* ── 레거시 모달 뷰 (백엔드 ModalRawResponse 그대로 렌더) ── */
           <div className="p-3">
-            <div className="relative h-[560px] border border-slate-200 bg-white overflow-hidden">
+            <div className="relative h-[560px] border border-slate-200 dark:border-vuno-border bg-white dark:bg-vuno-surface overflow-hidden">
               {kind === "ECG" && <ECGView ecgResult={backendResult} isLoading={false} />}
               {kind === "CXR" && (
                 <CXRView subjectId={subjectId} cacheKey="" cxrResult={backendResult} isLoading={false} />
               )}
               {kind === "LAB" && <LabView labResult={backendResult} isLoading={false} />}
             </div>
-            <div className="text-[9px] text-slate-400 pt-2">
+            <div className="text-[9px] text-slate-400 dark:text-vuno-dim pt-2">
               ecg-svc / chest-svc-pre / lab-svc 의 실시간 판독 응답입니다.
             </div>
           </div>
@@ -559,9 +580,9 @@ function ExamResultModal({
           <ResultSheetBody sheet={staticSheet} />
         ) : (
           /* LAB 백엔드 미연동 — 인라인 표 안내 */
-          <div className="p-8 text-center text-[12px] text-slate-500">
+          <div className="p-8 text-center text-[12px] text-slate-500 dark:text-vuno-muted">
             백엔드 미연동 — 혈액 검사 수치는 좌측 패널의 표에서 확인하세요.
-            <div className="text-[10px] text-slate-400 mt-1">
+            <div className="text-[10px] text-slate-400 dark:text-vuno-dim mt-1">
               백엔드 연결 시 룰엔진 결과 + 6시간 후 악화 예측 그래프가 표시됩니다.
             </div>
           </div>
@@ -573,9 +594,9 @@ function ExamResultModal({
 
 function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
   const concClass =
-    sheet.conclusion === "이상" ? "bg-red-50 border-red-300 text-red-700" :
-    sheet.conclusion === "경계" ? "bg-amber-50 border-amber-300 text-amber-700" :
-                                  "bg-emerald-50 border-emerald-300 text-emerald-700";
+    sheet.conclusion === "이상" ? "bg-red-50 dark:bg-red-500/15 border-red-300 dark:border-red-500/40 text-red-700 dark:text-red-300" :
+    sheet.conclusion === "경계" ? "bg-amber-50 dark:bg-amber-500/15 border-amber-300 dark:border-amber-500/40 text-amber-700 dark:text-amber-300" :
+                                  "bg-emerald-50 dark:bg-emerald-500/15 border-emerald-300 dark:border-emerald-500/40 text-emerald-700 dark:text-emerald-300";
   return (
     <div className="p-4 space-y-4">
       <div className="flex items-center gap-2">
@@ -588,15 +609,15 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
       <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-[11px]">
         {sheet.meta.map(([k, val]) => (
           <div key={k} className="flex gap-2">
-            <span className="text-slate-500 w-14 flex-shrink-0">{k}</span>
-            <span className="text-slate-800 font-medium">{val}</span>
+            <span className="text-slate-500 dark:text-vuno-muted w-14 flex-shrink-0">{k}</span>
+            <span className="text-slate-800 dark:text-white font-medium">{val}</span>
           </div>
         ))}
       </div>
 
       {/* 검사 시각화 — ECG는 임상용 종이 시트, CXR은 이미지 */}
       {sheet.kind === "ECG" ? (
-        <div className="border border-slate-300 overflow-hidden">
+        <div className="border border-slate-300 dark:border-vuno-border overflow-hidden">
           {(() => {
             // meta에서 환자/일시 정보 추출 (buildExamData 형식: "이름 · 남/30")
             const patientLine =
@@ -643,7 +664,7 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
           })()}
         </div>
       ) : (
-        <div className="border border-slate-300 bg-black overflow-hidden">
+        <div className="border border-slate-300 dark:border-vuno-border bg-black overflow-hidden">
           <img
             src={sheet.image}
             alt="흉부 X-ray"
@@ -658,18 +679,18 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
           <SectionLabel>측정값 (Measurements)</SectionLabel>
           <table className="w-full text-[11px] border-collapse">
             <thead>
-              <tr className="bg-slate-100 text-slate-600">
-                <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">항목</th>
-                <th className="text-right px-2 py-1.5 font-semibold border border-slate-200">측정값</th>
-                <th className="text-left px-2 py-1.5 font-semibold border border-slate-200">참고치</th>
+              <tr className="bg-slate-100 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted">
+                <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">항목</th>
+                <th className="text-right px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">측정값</th>
+                <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">참고치</th>
               </tr>
             </thead>
             <tbody>
               {sheet.measures.map(([k, val, ref]) => (
-                <tr key={k} className="hover:bg-slate-50">
-                  <td className="px-2 py-1.5 border border-slate-200 text-slate-700">{k}</td>
-                  <td className="px-2 py-1.5 border border-slate-200 text-right font-numeric font-bold text-slate-900">{val}</td>
-                  <td className="px-2 py-1.5 border border-slate-200 text-slate-500 font-numeric">{ref}</td>
+                <tr key={k} className="hover:bg-slate-50 dark:hover:bg-vuno-elevated">
+                  <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-700 dark:text-slate-200">{k}</td>
+                  <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-right font-numeric font-bold text-slate-900 dark:text-white">{val}</td>
+                  <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-500 dark:text-vuno-muted font-numeric">{ref}</td>
                 </tr>
               ))}
             </tbody>
@@ -682,7 +703,7 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
         <SectionLabel>판독 소견 (Findings)</SectionLabel>
         <ul className="space-y-1">
           {sheet.findings.map((f) => (
-            <li key={f} className="text-[11px] text-slate-700 flex gap-1.5">
+            <li key={f} className="text-[11px] text-slate-700 dark:text-slate-200 flex gap-1.5">
               <span className="text-vuno-cyanDim font-bold flex-shrink-0">·</span>
               <span>{f}</span>
             </li>
@@ -691,12 +712,12 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
       </div>
 
       {/* 결론 */}
-      <div className="border border-slate-300 bg-slate-50 px-3 py-2.5">
+      <div className="border border-slate-300 dark:border-vuno-border bg-slate-50 dark:bg-vuno-bg px-3 py-2.5">
         <SectionLabel>결론 (Impression)</SectionLabel>
-        <div className="text-[12px] font-bold text-slate-900">{sheet.impression}</div>
+        <div className="text-[12px] font-bold text-slate-900 dark:text-white">{sheet.impression}</div>
       </div>
 
-      <div className="text-[9px] text-slate-400 pt-1 border-t border-slate-200">
+      <div className="text-[9px] text-slate-400 dark:text-vuno-dim pt-1 border-t border-slate-200 dark:border-vuno-border">
         본 결과지는 say-6 AI 판독 보조 시스템이 생성한 참고용 자료이며, 최종 판독은 의료진의 검토를 따릅니다.
       </div>
     </div>
@@ -716,25 +737,30 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
     return map;
   }, [patient]);
 
-  const modals: Array<{ key: ModalKey; icon: typeof Activity; conf: number }> = [
+  // AI가 실제 판독한 모달만 노출 (reasons 접두사 기준) — 미요청 모달 숨김
+  const allModals: Array<{ key: ModalKey; icon: typeof Activity; conf: number }> = [
     { key: "ECG", icon: Activity,     conf: patient.id === "042" ? 0.89 : 0.85 },
     { key: "CXR", icon: ImageIcon,    conf: patient.id === "042" ? 0.94 : 0.91 },
     { key: "LAB", icon: FlaskConical, conf: patient.id === "042" ? 0.92 : 0.88 },
   ];
+  const modals = allModals.filter((m) => reasonMap[m.key]);
 
   return (
-    <Pane title="AI 판독결과" subtitle="AI Analysis · Per Modality" icon={Sparkles} accent>
+    <Pane title="AI 판독결과" subtitle="AI Analysis · Per Modality" icon={Sparkles} tone="brand">
       <div className="space-y-2.5">
+        {modals.length === 0 && (
+          <div className="text-[11px] text-slate-400 dark:text-vuno-dim py-6 text-center">판독된 검사가 없습니다.</div>
+        )}
         {modals.map((m) => {
           const status = patient[m.key.toLowerCase() as "ecg" | "cxr" | "lab"];
           const summary = reasonMap[m.key];
           const isCritical = patient.recommendation?.risk === "critical" && m.key === "ECG";
           return (
-            <div key={m.key} className="border border-slate-200 bg-white">
-              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 border-b border-slate-200">
-                <m.icon className="h-3.5 w-3.5 text-slate-600" />
-                <span className="text-[11px] font-bold text-slate-800">{m.key}</span>
-                <span className="text-[9px] text-slate-400">
+            <div key={m.key} className="border border-slate-200 dark:border-vuno-border bg-white dark:bg-vuno-surface">
+              <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 dark:bg-vuno-bg border-b border-slate-200 dark:border-vuno-border">
+                <m.icon className="h-3.5 w-3.5 text-slate-600 dark:text-vuno-muted" />
+                <span className="text-[11px] font-bold text-slate-800 dark:text-white">{m.key}</span>
+                <span className="text-[9px] text-slate-400 dark:text-vuno-dim">
                   {m.key === "ECG" ? "심전도 12-Lead" : m.key === "CXR" ? "흉부 X-ray" : "혈액 검사"}
                 </span>
                 <span className={cn(
@@ -746,19 +772,19 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
               </div>
               <div className="px-2.5 py-2">
                 {status === "running" ? (
-                  <div className="text-[11px] text-slate-400 italic">분석 중…</div>
+                  <div className="text-[11px] text-slate-400 dark:text-vuno-dim italic">분석 중…</div>
                 ) : summary ? (
                   <div className="flex gap-1.5">
                     {isCritical && <span className="text-red-600 flex-shrink-0">⚠</span>}
-                    <span className={cn("text-[11px] leading-relaxed", isCritical ? "text-red-700 font-medium" : "text-slate-700")}>
+                    <span className={cn("text-[11px] leading-relaxed", isCritical ? "text-red-700 font-medium" : "text-slate-700 dark:text-slate-200")}>
                       {summary}
                     </span>
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-400">판독 결과 없음</div>
+                  <div className="text-[11px] text-slate-400 dark:text-vuno-dim">판독 결과 없음</div>
                 )}
                 {status !== "running" && (
-                  <div className="mt-2 h-1 bg-slate-200 overflow-hidden">
+                  <div className="mt-2 h-1 bg-slate-200 dark:bg-vuno-elevated overflow-hidden">
                     <div
                       className={cn("h-full", m.conf >= 0.9 ? "bg-emerald-500" : "bg-amber-500")}
                       style={{ width: `${m.conf * 100}%` }}
@@ -776,9 +802,9 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
           <SectionLabel className="mt-4">RAG 유사 사례</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {patient.recommendation.similarCases.map((c) => (
-              <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 border border-slate-200 text-[10px]">
-                <span className="font-numeric text-slate-700">{c.id}</span>
-                <span className="text-slate-400">·</span>
+              <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border text-[10px]">
+                <span className="font-numeric text-slate-700 dark:text-slate-200">{c.id}</span>
+                <span className="text-slate-400 dark:text-vuno-dim">·</span>
                 <span className="font-numeric font-bold text-vuno-cyanDim">{Math.round(c.similarity * 100)}%</span>
               </span>
             ))}
@@ -891,13 +917,13 @@ function PaneAISummary({
       title="AI 종합소견"
       subtitle="AI Diagnostic Report"
       icon={PenLine}
-      accent
+      tone="brand"
       headerRight={
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => window.print()}
             title="소견서 인쇄 / PDF 저장"
-            className="h-7 w-7 grid place-items-center bg-white/15 text-white hover:bg-white/30 transition-colors"
+            className="h-7 w-7 grid place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-vuno-border dark:bg-vuno-surface dark:text-vuno-muted dark:hover:bg-vuno-elevated transition-colors"
           >
             <Printer className="h-3.5 w-3.5" />
           </button>
@@ -905,10 +931,10 @@ function PaneAISummary({
             disabled={!canEdit || status !== "preliminary" || busy}
             onClick={handleReview}
             className={cn(
-              "h-7 px-3 text-[11px] font-bold transition-colors whitespace-nowrap",
+              "h-7 px-3 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap",
               status === "preliminary" && canEdit && !busy
-                ? "bg-white text-slate-800 hover:bg-slate-100"
-                : "bg-white/20 text-white/60 cursor-not-allowed",
+                ? "bg-brand-600 text-white hover:bg-brand-700"
+                : "bg-slate-200 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim cursor-not-allowed",
             )}
           >
             소견 검토
@@ -922,10 +948,10 @@ function PaneAISummary({
               !signature.trim() ? "서명 입력 후 확정할 수 있습니다" : ""
             }
             className={cn(
-              "h-7 px-3 text-[11px] font-bold transition-colors whitespace-nowrap",
+              "h-7 px-3 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap",
               canFinalize
-                ? "bg-slate-900 text-white hover:bg-black"
-                : "bg-white/20 text-white/60 cursor-not-allowed",
+                ? "bg-slate-900 text-white hover:bg-black dark:bg-brand-600 dark:hover:bg-brand-700"
+                : "bg-slate-200 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim cursor-not-allowed",
             )}
           >
             소견 확정 · EMR 전송
@@ -939,21 +965,21 @@ function PaneAISummary({
           <div key={s.key} className="flex items-center gap-1">
             <span className={cn(
               "inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
-              i < stepIdx  ? "bg-slate-200 text-slate-500" :
+              i < stepIdx  ? "bg-slate-200 text-slate-500 dark:bg-vuno-elevated dark:text-vuno-muted" :
               i === stepIdx ? (
                 status === "signed"   ? "bg-emerald-600 text-white" :
                 status === "reviewed" ? "bg-blue-600 text-white" :
                                         "bg-amber-500 text-white"
-              ) : "bg-slate-100 text-slate-400",
+              ) : "bg-slate-100 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim",
             )}>
               <span className="font-numeric">{i + 1}</span> {s.label}
             </span>
             {i < STATUS_STEPS.length - 1 && (
-              <span className={cn("text-[10px]", i < stepIdx ? "text-slate-400" : "text-slate-300")}>›</span>
+              <span className={cn("text-[10px]", i < stepIdx ? "text-slate-400 dark:text-vuno-dim" : "text-slate-300 dark:text-vuno-dim")}>›</span>
             )}
           </div>
         ))}
-        <span className="ml-auto text-[10px] text-slate-500 whitespace-nowrap">
+        <span className="ml-auto text-[10px] text-slate-500 dark:text-vuno-muted whitespace-nowrap">
           {status === "preliminary" ? "AI 생성 · 검토 전" :
            status === "reviewed"    ? "의사 검토 중" :
                                       "서명 · EMR 전송 완료"}
@@ -965,8 +991,8 @@ function PaneAISummary({
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-vuno-cyan/10 border border-vuno-cyan/40 text-[10px] font-bold text-vuno-cyanDim">
           <Sparkles className="h-2.5 w-2.5" /> AI {rec ? Math.round(rec.confidence * 100) : "—"}%
         </span>
-        <span className="text-[11px] text-slate-500">Bedrock Claude · RAG 종합 생성</span>
-        <button className="ml-auto text-slate-400 hover:text-slate-600" title="복사">
+        <span className="text-[11px] text-slate-500 dark:text-vuno-muted">Bedrock Claude · RAG 종합 생성</span>
+        <button className="ml-auto text-slate-400 dark:text-vuno-dim hover:text-slate-600 dark:hover:text-vuno-muted" title="복사">
           <Copy className="h-3 w-3" />
         </button>
       </div>
@@ -985,29 +1011,29 @@ function PaneAISummary({
       </div>
 
       {!canEdit && (
-        <div className="mt-2 text-[10px] text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1.5">
+        <div className="mt-2 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 px-2 py-1.5">
           ⚠ 읽기 전용 — 소견서 편집·확정은 의사 권한이 필요합니다.
         </div>
       )}
 
       {canEdit && status === "preliminary" && (
-        <div className="mt-2 text-[10px] text-slate-600 bg-slate-50 border border-slate-200 px-2 py-1.5">
-          상단 <b className="text-slate-800">소견 검토</b> 버튼을 누르면 소견서 본문을 수정할 수 있습니다.
+        <div className="mt-2 text-[10px] text-slate-600 dark:text-vuno-muted bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border px-2 py-1.5">
+          상단 <b className="text-slate-800 dark:text-white">소견 검토</b> 버튼을 누르면 소견서 본문을 수정할 수 있습니다.
         </div>
       )}
 
       {canEdit && status === "reviewed" && (
-        <div className="mt-2 pt-2 border-t border-slate-200">
+        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-vuno-border">
           <div className="flex items-center gap-2">
-            <PenLine className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+            <PenLine className="h-3.5 w-3.5 text-slate-400 dark:text-vuno-dim flex-shrink-0" />
             <input
               value={signature}
               onChange={(e) => setSignature(e.target.value)}
               placeholder="담당 의사 성명 입력 (예: 정OO)"
-              className="flex-1 h-7 px-2 text-[11px] border border-slate-300 bg-white focus:outline-none focus:border-vuno-cyan"
+              className="flex-1 h-7 px-2 text-[11px] border border-slate-300 dark:border-vuno-border bg-white dark:bg-vuno-bg dark:text-white focus:outline-none focus:border-vuno-cyan"
             />
           </div>
-          <div className="mt-1 text-[10px] text-slate-500">
+          <div className="mt-1 text-[10px] text-slate-500 dark:text-vuno-muted">
             {signature.trim()
               ? "서명 입력 완료 — 상단 소견 확정 버튼으로 EMR 전송할 수 있습니다."
               : "서명을 입력해야 소견 확정이 활성화됩니다."}
@@ -1028,29 +1054,29 @@ function PaneAISummary({
     {/* EMR 전송 완료 팝업 */}
     {emrPopup && (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-        <div className="bg-white w-full max-w-sm border border-slate-300 shadow-2xl">
-          <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
-            <span className="h-9 w-9 grid place-items-center bg-emerald-100 text-emerald-600 rounded-full">
+        <div className="bg-white dark:bg-vuno-surface w-full max-w-sm border border-slate-300 dark:border-vuno-border shadow-2xl">
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-vuno-border flex items-center gap-2">
+            <span className="h-9 w-9 grid place-items-center bg-emerald-100 dark:bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 rounded-full">
               <CheckCircle2 className="h-5 w-5" />
             </span>
             <div>
-              <div className="text-sm font-bold text-slate-900">EMR 전송 완료</div>
-              <div className="text-[11px] text-slate-500">소견서 서명 · 외부 EMR 연동</div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white">EMR 전송 완료</div>
+              <div className="text-[11px] text-slate-500 dark:text-vuno-muted">소견서 서명 · 외부 EMR 연동</div>
             </div>
           </div>
-          <div className="px-5 py-4 text-[12px] text-slate-700 leading-relaxed">
-            소견서가 <b className="text-slate-900">서명 완료</b> 처리되었습니다.
+          <div className="px-5 py-4 text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed">
+            소견서가 <b className="text-slate-900 dark:text-white">서명 완료</b> 처리되었습니다.
             FHIR DiagnosticReport 상태가 <span className="font-numeric">final</span>로 전이되어
             외부 EMR 연동 대상으로 전송되었습니다.
-            <div className="mt-2 text-[11px] text-slate-500">
+            <div className="mt-2 text-[11px] text-slate-500 dark:text-vuno-muted">
               · 환자: {patient.name} ({patient.mimic?.subject_id ?? patient.mrn ?? patient.id})<br />
               · 처리 시각: {new Date().toLocaleString("ko-KR", { hour: "2-digit", minute: "2-digit", month: "2-digit", day: "2-digit" })}
             </div>
           </div>
-          <div className="px-5 py-3 border-t border-slate-200 flex gap-2 justify-end">
+          <div className="px-5 py-3 border-t border-slate-200 dark:border-vuno-border flex gap-2 justify-end">
             <button
               onClick={() => setEmrPopup(false)}
-              className="h-8 px-4 text-[12px] font-bold border border-slate-300 text-slate-700 hover:bg-slate-50"
+              className="h-8 px-4 text-[12px] font-bold border border-slate-300 dark:border-vuno-border text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-vuno-elevated"
             >
               이 소견서 계속 보기
             </button>
@@ -1072,25 +1098,30 @@ function PaneAISummary({
    공통 — Pane 컨테이너 / SectionLabel
    ───────────────────────────────────────────────────────── */
 function Pane({
-  title, subtitle, icon: Icon, accent, headerRight, children,
+  title, subtitle, icon: Icon, tone = "gray", headerRight, children,
 }: {
   title: string;
   subtitle: string;
   icon: typeof Activity;
-  accent?: boolean;
+  /** brand = AI 검사 권고와 동일한 연보라 / gray = 연한 회색 */
+  tone?: "gray" | "brand";
   headerRight?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const headBg = tone === "brand"
+    ? "bg-brand-50 dark:bg-brand-500/15"
+    : "bg-slate-100 dark:bg-vuno-bg";
+  const iconCls = tone === "brand" ? "text-brand-600" : "text-slate-500 dark:text-vuno-muted";
   return (
-    <section className="bg-white border border-slate-300 shadow-sm flex flex-col">
+    <section className="bg-white dark:bg-vuno-surface border border-slate-200 dark:border-vuno-border rounded-xl shadow-sm overflow-hidden flex flex-col">
       <header className={cn(
-        "px-3 py-2.5 flex items-center gap-2",
-        accent ? "bg-vuno-cyanDim" : "bg-slate-800",
+        "px-3 py-2.5 flex items-center gap-2 border-b border-slate-200 dark:border-vuno-border",
+        headBg,
       )}>
-        <Icon className="h-[18px] w-[18px] text-white/90 flex-shrink-0" />
+        <Icon className={cn("h-[18px] w-[18px] flex-shrink-0", iconCls)} />
         <div className="min-w-0">
-          <div className="text-[15px] font-bold text-white leading-none whitespace-nowrap">{title}</div>
-          <div className="text-[10px] text-white/55 tracking-wider uppercase mt-0.5 whitespace-nowrap">{subtitle}</div>
+          <div className="text-[15px] font-bold text-slate-900 dark:text-white leading-none whitespace-nowrap">{title}</div>
+          <div className="text-[10px] text-slate-400 dark:text-vuno-dim tracking-wider uppercase mt-0.5 whitespace-nowrap">{subtitle}</div>
         </div>
         {headerRight && <div className="ml-auto flex-shrink-0">{headerRight}</div>}
       </header>
@@ -1109,8 +1140,8 @@ function SectionLabel({
 }) {
   return (
     <div className={cn("flex items-center gap-1.5 mb-1.5", className)}>
-      <span className="text-[11px] font-bold text-slate-600 whitespace-nowrap">{children}</span>
-      {hint && <span className="text-[10px] text-slate-400 font-normal truncate">· {hint}</span>}
+      <span className="text-[11px] font-bold text-slate-600 dark:text-vuno-muted whitespace-nowrap">{children}</span>
+      {hint && <span className="text-[10px] text-slate-400 dark:text-vuno-dim font-normal truncate">· {hint}</span>}
       {action && <span className="ml-auto">{action}</span>}
     </div>
   );

@@ -124,21 +124,21 @@ export function NotificationsDropdown() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         title={total > 0 ? `알림 ${total}건` : "알림 없음"}
-        className="relative h-9 w-9 hover:bg-white/10 grid place-items-center transition-colors"
+        className="relative h-11 w-11 rounded-lg hover:bg-white/10 grid place-items-center transition-colors"
       >
-        <Bell className="h-4 w-4 text-white" />
+        <Bell className="h-6 w-6 text-white" strokeWidth={2.25} />
         {total > 0 && (
-          <span className="absolute top-1 right-1 h-4 min-w-[16px] px-1 bg-vuno-cyan text-vuno-bg text-[10px] font-bold grid place-items-center">
+          <span className="absolute top-0.5 right-0.5 h-[18px] min-w-[18px] px-1 rounded-full bg-white text-brand-700 text-[11px] font-bold grid place-items-center ring-2 ring-brand-600">
             {total}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[380px] bg-white border border-slate-300 shadow-xl z-50 max-h-[70vh] overflow-auto">
-          <div className="sticky top-0 bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex items-center justify-between">
-            <span className="text-sm font-bold text-slate-900">알림</span>
-            <span className="text-[12px] text-slate-500 font-numeric">{total}건</span>
+        <div className="absolute right-0 top-full mt-2 w-[380px] bg-white border border-slate-300 dark:bg-vuno-surface dark:border-vuno-border rounded-xl shadow-xl z-50 max-h-[70vh] overflow-auto">
+          <div className="sticky top-0 bg-slate-50 border-b border-slate-200 dark:bg-vuno-bg dark:border-vuno-border px-4 py-2.5 flex items-center justify-between">
+            <span className="text-sm font-bold text-slate-900 dark:text-white">알림</span>
+            <span className="text-[12px] text-slate-500 dark:text-vuno-muted font-numeric">{total}건</span>
           </div>
 
           <Section
@@ -166,7 +166,7 @@ export function NotificationsDropdown() {
           />
 
           {total === 0 && (
-            <div className="py-10 text-center text-slate-400 text-sm">
+            <div className="py-10 text-center text-slate-400 dark:text-vuno-dim text-sm">
               알림이 없습니다.
             </div>
           )}
@@ -194,13 +194,13 @@ function Section({
 }) {
   if (rows.length === 0) return null;
   const headBg = {
-    purple: "bg-purple-50 text-purple-700",
-    red: "bg-red-50 text-red-700",
-    emerald: "bg-emerald-50 text-emerald-700",
+    purple: "bg-purple-50 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
+    red: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300",
+    emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
   }[color];
   return (
     <div>
-      <div className={cn("px-4 py-2 flex items-center gap-1.5 border-b border-slate-200", headBg)}>
+      <div className={cn("px-4 py-2 flex items-center gap-1.5 border-b border-slate-200 dark:border-vuno-border", headBg)}>
         {icon}
         <span className="text-[13px] font-bold">{title}</span>
         <span className="ml-auto text-[12px] font-numeric font-bold">{rows.length}</span>
@@ -215,20 +215,20 @@ function Section({
             className={cn(
               "w-full text-left px-4 py-2.5 border-b flex items-start gap-3 transition-colors",
               overdue
-                ? "border-red-200 bg-red-50/40 hover:bg-red-50"
-                : "border-slate-100 hover:bg-slate-50",
+                ? "border-red-200 bg-red-50/40 hover:bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 dark:hover:bg-red-500/15"
+                : "border-slate-100 hover:bg-slate-50 dark:border-vuno-divider dark:hover:bg-vuno-elevated",
             )}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
                 <span className={cn(
                   "text-[13px] font-bold truncate",
-                  overdue ? "text-red-700" : "text-slate-900",
+                  overdue ? "text-red-700 dark:text-red-300" : "text-slate-900 dark:text-white",
                 )}>
                   {r.patient_name ?? r.subject_id ?? "환자"}
                 </span>
                 {r.subject_id && (
-                  <span className="text-[11px] text-slate-400 font-numeric">
+                  <span className="text-[11px] text-slate-400 dark:text-vuno-dim font-numeric">
                     #{r.subject_id}
                   </span>
                 )}
@@ -236,8 +236,8 @@ function Section({
                   <span className={cn(
                     "ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded",
                     overdue
-                      ? "bg-red-100 text-red-700 border border-red-300"
-                      : "bg-slate-100 text-slate-600",
+                      ? "bg-red-100 text-red-700 border border-red-300 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/40"
+                      : "bg-slate-100 text-slate-600 dark:bg-vuno-bg dark:text-vuno-muted",
                   )}>
                     {elapsed === 0 ? "방금" : `${elapsed}분 경과`}
                   </span>
@@ -246,11 +246,11 @@ function Section({
               {r.chief_complaint && (
                 <div className={cn(
                   "text-[12px] truncate mt-0.5",
-                  overdue ? "text-red-600" : "text-slate-500",
+                  overdue ? "text-red-600 dark:text-red-300" : "text-slate-500 dark:text-vuno-muted",
                 )}>{r.chief_complaint}</div>
               )}
             </div>
-            <div className="text-[11px] text-slate-400 font-numeric whitespace-nowrap">
+            <div className="text-[11px] text-slate-400 dark:text-vuno-dim font-numeric whitespace-nowrap">
               {fmt(r.created_at)}
             </div>
           </button>

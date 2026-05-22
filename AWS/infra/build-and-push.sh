@@ -73,7 +73,7 @@ build_and_push() {
     local IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${IMAGE_NAME}:latest"
 
     echo "Building ${IMAGE_NAME}..."
-    docker build --no-cache -t ${IMAGE_NAME}:latest .
+    docker build --platform linux/amd64 --no-cache -t ${IMAGE_NAME}:latest .
 
     echo "Tagging ${IMAGE_NAME}..."
     docker tag ${IMAGE_NAME}:latest ${IMAGE_URI}

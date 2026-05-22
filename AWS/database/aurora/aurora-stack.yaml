@@ -51,7 +51,7 @@ Parameters:
 
   MasterUsername:
     Type: String
-    Default: admin
+    Default: dbadmin
     MinLength: 1
     MaxLength: 16
     AllowedPattern: "^[a-zA-Z][a-zA-Z0-9_]*$"
@@ -85,12 +85,10 @@ Parameters:
 
   EnableRotation:
     Type: String
-    Default: "true"
+    Default: "false"
     AllowedValues: ["true", "false"]
     Description: >
-      Enable 30-day automatic password rotation via AWS-managed
-      PostgreSQLSingleUser rotation Lambda. Disable only for short-lived
-      dev clusters that won't outlive a single rotation cycle.
+      Reserved for future use. Rotation is currently disabled for dev.
 
 # ============================================================================
 Conditions:
@@ -276,25 +274,10 @@ Resources:
       TargetType: AWS::RDS::DBCluster
 
   # ===========================================================
-  # 7. 30-day rotation (AWS-managed Lambda - auto-created)
+  # 7. Rotation - disabled for dev
+  #    NOTE: To enable rotation later, add AWS::SecretsManager::RotationSchedule
+  #    with a custom rotation Lambda or use the console.
   # ===========================================================
-  AuroraSecretRotation:
-    Type: AWS::SecretsManager::RotationSchedule
-    Condition: RotationEnabled
-    DependsOn: AuroraSecretAttachment
-    Properties:
-      SecretId: !Ref AuroraMasterSecret
-      HostedRotationLambda:
-        RotationType: PostgreSQLSingleUser
-        RotationLambdaName: !Sub "${ProjectName}-aurora-rotation-fn"
-        VpcSubnetIds:
-          Fn::Join:
-            - ","
-            - - Fn::ImportValue: !Sub "${ProjectName}-private-data-subnet-a"
-              - Fn::ImportValue: !Sub "${ProjectName}-private-data-subnet-c"
-        VpcSecurityGroupIds: !ImportValue say2-6team-aurora-sg
-      RotationRules:
-        AutomaticallyAfterDays: 30
 
   # ===========================================================
   # 8. Writer instance (Primary)

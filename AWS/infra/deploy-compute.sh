@@ -85,11 +85,12 @@ echo "Deploying Compute Stack..."
 echo "This will take 10-15 minutes..."
 echo ""
 
+PARAM_OVERRIDES=$(python "${SCRIPT_DIR}/parse_params.py" "${SCRIPT_DIR}/compute-stack-params.json")
+
 aws cloudformation deploy \
   --stack-name "${PROJECT_NAME}-compute" \
   --template-file "${SCRIPT_DIR}/compute-stack.yaml" \
-  --parameter-overrides \
-    $(jq -r '.[] | "\(.ParameterKey)=\(.ParameterValue)"' "${SCRIPT_DIR}/compute-stack-params.json") \
+  --parameter-overrides $PARAM_OVERRIDES \
   --capabilities CAPABILITY_IAM \
   --region "${REGION}" \
   --tags \

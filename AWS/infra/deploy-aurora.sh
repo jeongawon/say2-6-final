@@ -42,6 +42,26 @@ check_stack "${PROJECT_NAME}-network"  "Network stack"
 check_stack "${PROJECT_NAME}-security" "Security stack (Aurora SG available)"
 
 echo ""
+# Pre-cleanup: force-delete any leftover Secrets Manager secret from previous failed deployments
+# Secrets Manager has a 7-day recovery window by default, which causes AlreadyExists on redeploy
+SECRET_ID="${PROJECT_NAME}/aurora-credentials"
+SECRET_STATUS=$(aws secretsmanager describe-secret \
+  --secret-id "$SECRET_ID" \
+  --region "$REGION" \
+  --query "DeletedDate" \
+  --output text 2>/dev/null || echo "NOT_FOUND")
+
+if [ "$SECRET_STATUS" == "NOT_FOUND" ]; then
+  echo "[OK] No leftover secret found"
+else
+  echo "Leftover secret detected. Force-deleting: ${SECRET_ID}"
+  aws secretsmanager delete-secret \
+    --secret-id "$SECRET_ID" \
+    --force-delete-without-recovery \
+    --region "$REGION" 2>/dev/null || true
+  echo "[OK] Secret force-deleted"
+fi
+echo ""
 echo "Deploying Aurora Serverless v2 stack..."
 echo "This will take 15-20 minutes..."
 echo ""
@@ -50,7 +70,8 @@ echo ""
 aws cloudformation deploy \
   --stack-name "${PROJECT_NAME}-aurora" \
   --template-file "$TEMPLATE_FILE" \
-  --capabilities CAPABILITY_IAM \
+  --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
+  --parameter-overrides EnableRotation=false \
   --region "${REGION}" \
   --tags \
     Project="${PROJECT_NAME}" \

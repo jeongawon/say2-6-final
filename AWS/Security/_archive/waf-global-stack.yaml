@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  say2-6team global WAF stack for CloudFront.
+  Deploy this stack in us-east-1 only.
+
+Metadata:
+  Project:
+    Name: say2-6team
+    Purpose: CloudFront WAF baseline
+  Notes:
+    - CloudFront is a global service.
+    - WAFv2 WebACL with Scope=CLOUDFRONT must be created in us-east-1.
+    - This stack is intentionally separated from the Seoul regional security stack.
+    - The WebACL ARN should be passed to the CloudFront stack as a Parameter.
+    - Initial rules are configured in Count mode to avoid blocking legitimate traffic during dev.
+    - After monitoring false positives, switch selected rules from Count to Block.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: say2-6team
+    Description: Project prefix used for resource naming and tags.
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment.
+
+  Owner:
+    Type: String
+    Default: yji
+    AllowedValues:
+      - unassigned
+      - wja
+      - lji
+      - hkt
+      - yji
+    Description: Resource owner tag value.
+
+  RateLimitPerFiveMinutes:
+    Type: Number
+    Default: 2000
+    MinValue: 100
+    Description: >
+      Request rate limit per IP per 5 minutes.
+      Current rule is Count mode in dev. Change Action to Block after validation.
+
+Resources:
+  ###########################################################################
+  # CloudFront WAF WebACL
+  #
+  # Important:
+  #   - Deploy this stack in us-east-1.
+  #   - CloudFront stack should use this WebACL ARN in DistributionConfig.WebACLId.
+  #   - Cross-region ImportValue is not supported, so pass the ARN as a Parameter
+  #     if the CloudFront stack is managed outside us-east-1.
+  ###########################################################################
+  CloudFrontWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub "${ProjectName}-cloudfront-waf"
+      Description: !Sub "${ProjectName} CloudFront WAF baseline"
+      Scope: CLOUDFRONT
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub "${ProjectName}-cloudfront-waf"
+        SampledRequestsEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-cloudfront-waf"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+      Rules:
+        #####################################################################
+        # Dev-stage rule strategy:
+        # Managed rules are in Count mode first.
+        # This lets the team observe what would be blocked without breaking
+        # frontend/API traffic during early integration.
+        #
+        # Hardening step:
+        #   - Review sampled requests and WAF metrics.
+        #   - Change OverrideAction from Count to None to enforce managed rules.
+        #####################################################################
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 10
+          OverrideAction:
+            Count: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommonRuleSet
+            SampledRequestsEnabled: true
+
+        - Name: AWSManagedRulesKnownBadInputsRuleSet
+          Priority: 20
+          OverrideAction:
+            Count: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesKnownBadInputsRuleSet
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesKnownBadInputsRuleSet
+            SampledRequestsEnabled: true
+
+        - Name: AWSManagedRulesAmazonIpReputationList
+          Priority: 30
+          OverrideAction:
+            Count: {}
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesAmazonIpReputationList
+            SampledRequestsEnabled: true
+
+        #####################################################################
+        # Rate limit rule
+        #
+        # Current version:
+        #   - Count only.
+        #   - It does not block yet.
+        #
+        # Next step:
+        #   - After checking normal traffic volume, change Action from Count
+        #     to Block if the threshold is appropriate.
+        #####################################################################
+        - Name: RateLimitPerIP
+          Priority: 100
+          Action:
+            Count: {}
+          Statement:
+            RateBasedStatement:
+              Limit: !Ref RateLimitPerFiveMinutes
+              AggregateKeyType: IP
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimitPerIP
+            SampledRequestsEnabled: true
+
+Outputs:
+  CloudFrontWebACLArn:
+    Description: >
+      WAF WebACL ARN for CloudFront.
+      Pass this value to the CloudFront stack parameter WebAclArn.
+    Value: !GetAtt CloudFrontWebACL.Arn
+    Export:
+      Name: !Sub "${ProjectName}-cloudfront-waf-web-acl-arn"
+
+  CloudFrontWebACLId:
+    Description: WAF WebACL ID.
+    Value: !GetAtt CloudFrontWebACL.Id
+
+  CloudFrontWebACLName:
+    Description: WAF WebACL name.
+    Value: !Ref CloudFrontWebACL

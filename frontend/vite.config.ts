@@ -16,6 +16,7 @@ export default defineConfig(({ mode }) => {
     "/predict", "/health", "/ready",       // ML 추론(레거시 직결 + ECS)
     "/mimic", "/triage/submit",            // 트리아지
     "/encounters", "/orders", "/reports",  // v2 진료 플로우
+    "/route",                              // router-svc (orchestrator 장애 폴백)
     "/assets", "/devices",
   ];
   const proxy: Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> = {};

@@ -1,0 +1,72 @@
+{
+  "family": "say2-6team-orchestrator-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::666803869796:role/say2-6team-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::666803869796:role/say2-6team-orchestrator-task-role",
+  "containerDefinitions": [
+    {
+      "name": "orchestrator",
+      "image": "666803869796.dkr.ecr.us-east-1.amazonaws.com/say2-6team-orchestrator:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "CXR_SVC_URL",
+          "value": "http://cxr-svc.say2-6team.local:8002"
+        },
+        {
+          "name": "ECG_SVC_URL",
+          "value": "http://ecg-svc.say2-6team.local:8001"
+        },
+        {
+          "name": "LAB_SVC_URL",
+          "value": "http://lab-svc.say2-6team.local:8003"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/say2-6team-orchestrator",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Project",
+      "value": "say2-6team"
+    },
+    {
+      "key": "Owner",
+      "value": "lji"
+    },
+    {
+      "key": "Environment",
+      "value": "dev"
+    }
+  ]
+}

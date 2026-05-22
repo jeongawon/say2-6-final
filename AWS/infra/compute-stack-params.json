@@ -1,0 +1,34 @@
+[
+  {
+    "ParameterKey": "ProjectName",
+    "ParameterValue": "say2-6team"
+  },
+  {
+    "ParameterKey": "Environment",
+    "ParameterValue": "dev"
+  },
+  {
+    "ParameterKey": "Owner",
+    "ParameterValue": "lji"
+  },
+  {
+    "ParameterKey": "OrchestratorImageUri",
+    "ParameterValue": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-orchestrator:latest"
+  },
+  {
+    "ParameterKey": "CxrSvcImageUri",
+    "ParameterValue": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-cxr-svc:latest"
+  },
+  {
+    "ParameterKey": "EcgSvcImageUri",
+    "ParameterValue": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-ecg-svc:latest"
+  },
+  {
+    "ParameterKey": "LabSvcImageUri",
+    "ParameterValue": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-lab-svc:latest"
+  },
+  {
+    "ParameterKey": "RouterSvcImageUri",
+    "ParameterValue": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-router-svc:latest"
+  }
+]

@@ -1,0 +1,68 @@
+{
+  "family": "say2-6team-ecg-svc-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::666803869796:role/say2-6team-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::666803869796:role/say2-6team-ecg-task-role",
+  "containerDefinitions": [
+    {
+      "name": "ecg-svc",
+      "image": "666803869796.dkr.ecr.us-east-1.amazonaws.com/say2-6team-ecg-svc:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8001,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "HOST",
+          "value": "0.0.0.0"
+        },
+        {
+          "name": "PORT",
+          "value": "8001"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/say2-6team-ecg-svc",
+          "awslogs-region": "us-east-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8001/health')\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Project",
+      "value": "say2-6team"
+    },
+    {
+      "key": "Owner",
+      "value": "lji"
+    },
+    {
+      "key": "Environment",
+      "value": "dev"
+    }
+  ]
+}

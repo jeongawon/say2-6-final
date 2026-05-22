@@ -47,6 +47,7 @@ export interface ReportGenerateResult {
   status?: string;
   narrative: string;
   model_used?: string;
+  rag_available?: boolean;  // RAG svc 장애 시 false — 프론트에서 안내 배너 표시
   similar_cases?: Array<{
     chunk_type?: string;
     hadm_id?: string;
@@ -192,6 +193,81 @@ export async function listReports(status?: string): Promise<ReportRow[]> {
 export async function getUnsignedReportCount(): Promise<number> {
   const res = await jsonFetch<{ unsigned_count: number }>(`/reports/unsigned-count`);
   return res?.unsigned_count ?? 0;
+}
+
+/* ── GET /health — orchestrator 헬스체크 ───────────────────── */
+export async function checkOrchestratorHealth(): Promise<boolean> {
+  try {
+    const res = await fetch("/health", { signal: AbortSignal.timeout(5000) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/* ── GET /route/status — 모달 서비스 헬스 상태 (router-svc) ── */
+export interface ModalServiceStatus {
+  ECG: "healthy" | "down";
+  CXR: "healthy" | "down";
+  LAB: "healthy" | "down";
+}
+
+export async function getModalServiceStatus(): Promise<ModalServiceStatus | null> {
+  return jsonFetch<ModalServiceStatus>("/route/status");
+}
+
+/* ── POST /encounters/{eid}/manual-modal-result — 모달 장애 시 의사 수기 저장 ── */
+export interface ManualModalResultInput {
+  modality: "ECG" | "CXR" | "LAB";
+  text: string;           // 의사가 직접 서술한 소견 텍스트
+  summary?: string;       // 짧은 요약 (없으면 백엔드가 text 앞 200자 사용)
+  risk_level?: "routine" | "urgent" | "critical";
+}
+
+export async function submitManualModalResult(
+  encounterId: string,
+  input: ManualModalResultInput,
+): Promise<boolean> {
+  const res = await jsonFetch<{ id: string }>(`/encounters/${encounterId}/manual-modal-result`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return !!res;
+}
+
+/* ── POST /route/analyze — orchestrator 장애 시 router 폴백 종합 분석 ── */
+export interface RouterAnalyzeInput {
+  patient_info: {
+    age?: number;
+    gender?: string;
+    chief_complaint?: string;
+    vitals?: Record<string, number>;
+    past_history?: string[];
+  };
+  available_modals: string[];
+  // 백엔드 AnalyzeRequest.modal_results 필드명과 일치
+  // 살아있는 모달 추론 결과(dict) 또는 장애 모달 의사 직접 입력(string)
+  modal_results: Partial<Record<string, string | Record<string, unknown> | null>>;
+  modal_data?: Record<string, Record<string, unknown>>;
+}
+
+export interface RouterAnalyzeResult {
+  narrative: string;
+  source: "rag" | "bedrock_direct";
+  rag_available: boolean;
+  modal_results_used: string[];
+  stored: false;
+}
+
+export async function analyzeViaRouter(
+  input: RouterAnalyzeInput,
+): Promise<RouterAnalyzeResult | null> {
+  return jsonFetch<RouterAnalyzeResult>("/route/analyze", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
 }
 
 /* ── POST /orders/{sr_id}/approve — AI 권고 승인 → 모달 실행 ── */

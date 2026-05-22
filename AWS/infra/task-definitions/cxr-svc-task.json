@@ -1,0 +1,68 @@
+{
+  "family": "say2-6team-cxr-svc-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "8192",
+  "executionRoleArn": "arn:aws:iam::666803869796:role/say2-6team-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::666803869796:role/say2-6team-cxr-task-role",
+  "containerDefinitions": [
+    {
+      "name": "cxr-svc",
+      "image": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-cxr-svc:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8002,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "MODEL_DIR",
+          "value": "/models"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        },
+        {
+          "name": "PORT",
+          "value": "8002"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/say2-6team-cxr-svc",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "curl -f http://localhost:8002/healthz || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Project",
+      "value": "say2-6team"
+    },
+    {
+      "key": "Owner",
+      "value": "lji"
+    },
+    {
+      "key": "Environment",
+      "value": "dev"
+    }
+  ]
+}

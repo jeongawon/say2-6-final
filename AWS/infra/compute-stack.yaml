@@ -1,0 +1,785 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'say2-6team Compute Stack - ECS Cluster, ALB, Services (lji)'
+
+# ============================================================
+# Parameters
+# ============================================================
+Parameters:
+  ProjectName:
+    Type: String
+    Default: say2-6team
+    Description: Project name for resource naming
+  
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Environment name
+  
+  Owner:
+    Type: String
+    Default: lji
+    AllowedValues:
+      - unassigned
+      - wja
+      - lji
+      - hkt
+      - yji
+    Description: Resource owner
+  
+  # ECR image URIs (provided at deploy time)
+  OrchestratorImageUri:
+    Type: String
+    Description: Orchestrator ECR image URI
+  
+  CxrSvcImageUri:
+    Type: String
+    Description: CXR Service ECR image URI
+  
+  EcgSvcImageUri:
+    Type: String
+    Description: ECG Service ECR image URI
+  
+  LabSvcImageUri:
+    Type: String
+    Description: Lab Service ECR image URI
+
+  RouterSvcImageUri:
+    Type: String
+    Description: Router Service ECR image URI
+
+# ============================================================
+# Resources
+# ============================================================
+Resources:
+  
+  # ------------------------------------------------------------
+  # 1. ECS Cluster
+  # ------------------------------------------------------------
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub '${ProjectName}-ecs-cluster'
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: FARGATE
+          Weight: 1
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  # ------------------------------------------------------------
+  # 2. CloudWatch Logs Groups
+  # ------------------------------------------------------------
+  OrchestratorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /drai/central-backend
+      RetentionInDays: 90
+  
+  CxrSvcLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /drai/modal/cxr
+      RetentionInDays: 30
+  
+  EcgSvcLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /drai/modal/ecg
+      RetentionInDays: 30
+  
+  LabSvcLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /drai/modal/lab
+      RetentionInDays: 30
+  
+  RouterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /drai/router
+      RetentionInDays: 30
+  
+  # ------------------------------------------------------------
+  # 3. Application Load Balancer
+  # ------------------------------------------------------------
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub '${ProjectName}-alb'
+      Type: application
+      Scheme: internet-facing
+      IpAddressType: ipv4
+      Subnets:
+        - !ImportValue say2-6team-public-subnet-a
+        - !ImportValue say2-6team-public-subnet-c
+      SecurityGroups:
+        - !ImportValue say2-6team-alb-sg
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-alb'
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  # ------------------------------------------------------------
+  # 4. Target Groups
+  # ------------------------------------------------------------
+  OrchestratorTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ProjectName}-orchestrator-tg'
+      Port: 8000
+      Protocol: HTTP
+      VpcId: !ImportValue say2-6team-vpc-id
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-orchestrator-tg'
+        - Key: Project
+          Value: !Ref ProjectName
+  
+  # ------------------------------------------------------------
+  # NOTE: CXR/ECG/LAB Target Group intentionally omitted.
+  # Modal services (cxr/ecg/lab) are internal-only.
+  # Not attached to ALB - accessible only via Cloud Map DNS
+  # from orchestrator or router-svc.
+  # ------------------------------------------------------------
+
+  RouterSvcTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub '${ProjectName}-router-svc-tg'
+      Port: 8004
+      Protocol: HTTP
+      VpcId: !ImportValue say2-6team-vpc-id
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: 200
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-router-svc-tg'
+        - Key: Project
+          Value: !Ref ProjectName
+  
+  # ------------------------------------------------------------
+  # 5. ALB Listener (HTTP)
+  # ------------------------------------------------------------
+  HTTPListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref OrchestratorTargetGroup
+  
+  # ------------------------------------------------------------
+  # 6. Listener Rules (path-based routing)
+  # ------------------------------------------------------------
+  RouterSvcListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 5
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /route/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref RouterSvcTargetGroup
+  
+  OrchestratorListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !Ref HTTPListener
+      Priority: 10
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /orchestrator/*
+      Actions:
+        - Type: forward
+          TargetGroupArn: !Ref OrchestratorTargetGroup
+  
+  # ------------------------------------------------------------
+  # NOTE: No listener rules for /cxr/*, /ecg/*, /lab/* (intentional).
+  # Modal services are internal-only.
+  # Not accessible externally - only via orchestrator or router.
+  # ------------------------------------------------------------
+
+  # ------------------------------------------------------------
+  # 7. Service Discovery (Cloud Map)
+  # ------------------------------------------------------------
+  OrchestratorServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: orchestrator
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+  
+  CxrSvcServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: cxr-svc
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+  
+  EcgSvcServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: ecg-svc
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+  
+  LabSvcServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: lab-svc
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+  
+  RouterSvcServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: router-svc
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+  
+  # ------------------------------------------------------------
+  # 8. Task Definitions
+  # ------------------------------------------------------------
+  OrchestratorTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-orchestrator-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 512
+      Memory: 1024
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-orchestrator-role-arn
+      ContainerDefinitions:
+        - Name: orchestrator
+          Image: !Ref OrchestratorImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: CXR_SVC_URL
+              Value: http://cxr-svc.say2-6team.local:8002
+            - Name: ECG_SVC_URL
+              Value: http://ecg-svc.say2-6team.local:8001
+            - Name: LAB_SVC_URL
+              Value: http://lab-svc.say2-6team.local:8003
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: OPS_DB_URL
+              Value: !Sub 
+                - 'postgresql://{{resolve:secretsmanager:${SecretArn}:SecretString:username}}:{{resolve:secretsmanager:${SecretArn}:SecretString:password}}@${Endpoint}:5432/central_db'
+                - SecretArn:
+                    Fn::ImportValue: say2-6team-aurora-secret-arn
+                  Endpoint:
+                    Fn::ImportValue: say2-6team-aurora-endpoint
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: BEDROCK_MODEL_ID
+              Value: global.anthropic.claude-sonnet-4-6
+            - Name: RAG_SERVICE_URL
+              Value: http://rag-svc.say2-6team.local:8000
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref OrchestratorLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 10
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  CxrSvcTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-cxr-svc-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 2048
+      Memory: 8192
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-cxr-task-role-arn
+      ContainerDefinitions:
+        - Name: cxr-svc
+          Image: !Ref CxrSvcImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8002
+              Protocol: tcp
+          Environment:
+            - Name: MODEL_DIR
+              Value: /models
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: PORT
+              Value: "8002"
+            - Name: DB_URL
+              Value: !Sub
+                - 'postgresql://{{resolve:secretsmanager:${SecretArn}:SecretString:username}}:{{resolve:secretsmanager:${SecretArn}:SecretString:password}}@${Endpoint}:5432/central_db'
+                - SecretArn:
+                    Fn::ImportValue: say2-6team-aurora-secret-arn
+                  Endpoint:
+                    Fn::ImportValue: say2-6team-aurora-endpoint
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref CxrSvcLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: cxr
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8002/healthz')" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  EcgSvcTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-ecg-svc-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1024
+      Memory: 2048
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-ecg-task-role-arn
+      ContainerDefinitions:
+        - Name: ecg-svc
+          Image: !Ref EcgSvcImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8001
+              Protocol: tcp
+          Environment:
+            - Name: HOST
+              Value: 0.0.0.0
+            - Name: PORT
+              Value: "8001"
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: DB_URL
+              Value: !Sub
+                - 'postgresql://{{resolve:secretsmanager:${SecretArn}:SecretString:username}}:{{resolve:secretsmanager:${SecretArn}:SecretString:password}}@${Endpoint}:5432/central_db'
+                - SecretArn:
+                    Fn::ImportValue: say2-6team-aurora-secret-arn
+                  Endpoint:
+                    Fn::ImportValue: say2-6team-aurora-endpoint
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref EcgSvcLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecg
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  LabSvcTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-lab-svc-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 1024
+      Memory: 2048
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-lab-task-role-arn
+      ContainerDefinitions:
+        - Name: lab-svc
+          Image: !Ref LabSvcImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8003
+              Protocol: tcp
+          Environment:
+            - Name: HOST
+              Value: 0.0.0.0
+            - Name: PORT
+              Value: "8003"
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: DB_URL
+              Value: !Sub
+                - 'postgresql://{{resolve:secretsmanager:${SecretArn}:SecretString:username}}:{{resolve:secretsmanager:${SecretArn}:SecretString:password}}@${Endpoint}:5432/central_db'
+                - SecretArn:
+                    Fn::ImportValue: say2-6team-aurora-secret-arn
+                  Endpoint:
+                    Fn::ImportValue: say2-6team-aurora-endpoint
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LabSvcLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: lab
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8003/health')" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 10
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  RouterSvcTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-router-svc-task'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: 256
+      Memory: 512
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-router-task-role-arn
+      ContainerDefinitions:
+        - Name: router-svc
+          Image: !Ref RouterSvcImageUri
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8004
+              Protocol: tcp
+          Environment:
+            - Name: ECG_SVC_URL
+              Value: http://ecg-svc.say2-6team.local:8001
+            - Name: CXR_SVC_URL
+              Value: http://cxr-svc.say2-6team.local:8002
+            - Name: LAB_SVC_URL
+              Value: http://lab-svc.say2-6team.local:8003
+            - Name: RAG_SVC_URL
+              Value: http://rag-svc.say2-6team.local:8000
+            - Name: PORT
+              Value: "8004"
+            - Name: LOG_LEVEL
+              Value: INFO
+            - Name: AWS_REGION
+              Value: !Ref AWS::Region
+            - Name: BEDROCK_MODEL_ID
+              Value: global.anthropic.claude-sonnet-4-6
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref RouterLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: router
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - python -c "import urllib.request; urllib.request.urlopen('http://localhost:8004/health')" || exit 1
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 10
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  # ------------------------------------------------------------
+  # 9. ECS Services
+  # ------------------------------------------------------------
+  OrchestratorService:
+    Type: AWS::ECS::Service
+    DependsOn: HTTPListener
+    Properties:
+      ServiceName: !Sub '${ProjectName}-orchestrator-service'
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref OrchestratorTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-central-sg
+      LoadBalancers:
+        - ContainerName: orchestrator
+          ContainerPort: 8000
+          TargetGroupArn: !Ref OrchestratorTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt OrchestratorServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  CxrSvcService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-cxr-svc-service'
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref CxrSvcTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-cxr-sg
+      ServiceRegistries:
+        - RegistryArn: !GetAtt CxrSvcServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  EcgSvcService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-ecg-svc-service'
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref EcgSvcTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-ecg-sg
+      ServiceRegistries:
+        - RegistryArn: !GetAtt EcgSvcServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  LabSvcService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-lab-svc-service'
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref LabSvcTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-lab-sg
+      ServiceRegistries:
+        - RegistryArn: !GetAtt LabSvcServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+  
+  RouterSvcService:
+    Type: AWS::ECS::Service
+    DependsOn: HTTPListener
+    Properties:
+      ServiceName: !Sub '${ProjectName}-router-svc-service'
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref RouterSvcTaskDefinition
+      DesiredCount: 2
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-router-sg
+      LoadBalancers:
+        - ContainerName: router-svc
+          ContainerPort: 8004
+          TargetGroupArn: !Ref RouterSvcTargetGroup
+      ServiceRegistries:
+        - RegistryArn: !GetAtt RouterSvcServiceDiscovery.Arn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 50
+        MaximumPercent: 200
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Owner
+          Value: !Ref Owner
+
+# ============================================================
+# Outputs
+# ============================================================
+Outputs:
+  ECSClusterName:
+    Description: ECS Cluster Name
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub '${ProjectName}-ecs-cluster-name'
+  
+  ECSClusterArn:
+    Description: ECS Cluster ARN
+    Value: !GetAtt ECSCluster.Arn
+    Export:
+      Name: !Sub '${ProjectName}-ecs-cluster-arn'
+  
+  ALBDNSName:
+    Description: ALB DNS Name
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
+    Export:
+      Name: !Sub '${ProjectName}-alb-dns-name'
+  
+  ALBArn:
+    Description: ALB ARN
+    Value: !Ref ApplicationLoadBalancer
+    Export:
+      Name: !Sub '${ProjectName}-alb-arn'
+  
+  ALBHostedZoneId:
+    Description: ALB Hosted Zone ID
+    Value: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+    Export:
+      Name: !Sub '${ProjectName}-alb-hosted-zone-id'

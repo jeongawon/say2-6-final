@@ -16,9 +16,12 @@ Metadata:
     - Aurora/DB Secret should be created by data-stack and later exported.
     - IAM policies use project-prefix wildcards during dev and should be tightened after data-stack exports exact ARNs.
     - Cognito is included as a baseline, but callback/logout URLs are placeholders until the frontend/CloudFront domain is finalized.
-    - RAG service calls Bedrock only for query embedding generation.
-    - RAG service searches ChromaDB/Vector DB and returns Top-K similar cases only.
-    - Orchestrator remains responsible for patient request handling, modal orchestration, final Bedrock synthesis, and final DB write.
+    - RAG service is responsible for RAG search, pre/post processing, prompting, and Bedrock invocation for automated narrative generation.
+    - RAG service writes the generated narrative to Aurora PostgreSQL.
+    - Modal services (ECG, CXR, LAB) write their own inference results directly to Aurora PostgreSQL.
+    - Orchestrator handles patient request intake, modal orchestration via Cloud Map, and final coordination. When orchestrator is healthy, it calls modal services directly via Cloud Map DNS.
+    - Router service is a stateless routing layer. When orchestrator is down, router handles direct modal calls from physicians and assembles context for RAG. Router does not perform judgment or DB write.
+    - Modal services (ECG, CXR, LAB) are internal-only and are not attached to the ALB. They are accessible only via Cloud Map DNS from orchestrator or router-svc.
 
 Parameters:
   ProjectName:
@@ -115,16 +118,16 @@ Resources:
   # Security Groups
   #
   # Responsibility split:
-  #   - Orchestrator calls modal services and collects short modal summaries.
-  #   - Orchestrator sends modal summaries to RAG service.
-  #   - RAG service creates embeddings, queries ChromaDB/Vector DB,
-  #     and returns Top-K similar cases only.
-  #   - Orchestrator combines modal outputs + Top-K RAG results and performs
-  #     final Bedrock synthesis and final DB write.
+  #   - Orchestrator calls modal services via Cloud Map and collects results.
+  #   - Orchestrator passes assembled context to RAG /generate.
+  #   - RAG service performs embedding, ChromaDB search, prompting,
+  #     and Bedrock invocation for automated narrative generation.
+  #   - Modal services (ECG, CXR, LAB) write their own inference results
+  #     directly to Aurora PostgreSQL.
   #
   # ChromaDB:
-  #   - ChromaDB/Vector DB is separated behind chroma-sg.
-  #   - Only rag-sg can access chroma-sg on port 8000.
+  #   - ChromaDB/Vector DB is embedded inside the RAG container (file mode).
+  #   - chroma-sg is reserved for future external ChromaDB if needed.
   #
   # NACLs:
   #   - Not included in this version.
@@ -226,6 +229,23 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub "${ProjectName}-rag-sg"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+  RouterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub "${ProjectName}-router-sg"
+      GroupDescription: Security group for Router service (stateless fallback)
+      VpcId: !ImportValue say2-6team-vpc-id
+      SecurityGroupEgress: []
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-router-sg"
         - Key: Project
           Value: !Ref ProjectName
         - Key: Owner
@@ -387,6 +407,97 @@ Resources:
       SourceSecurityGroupId: !Ref HAPISecurityGroup
       Description: HAPI to Aurora PostgreSQL
 
+  # Router SG ingress rules
+  RouterIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8004
+      ToPort: 8004
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: ALB to router service
+
+  ECGIngressFromRouter:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECGSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8001
+      SourceSecurityGroupId: !Ref RouterSecurityGroup
+      Description: Router to ECG service (fallback)
+
+  CXRIngressFromRouter:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref CXRSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8002
+      ToPort: 8002
+      SourceSecurityGroupId: !Ref RouterSecurityGroup
+      Description: Router to CXR service (fallback)
+
+  LABIngressFromRouter:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref LABSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8003
+      ToPort: 8003
+      SourceSecurityGroupId: !Ref RouterSecurityGroup
+      Description: Router to LAB service (fallback)
+
+  RAGIngressFromRouter:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref RAGSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8000
+      SourceSecurityGroupId: !Ref RouterSecurityGroup
+      Description: Router to RAG service (fallback)
+
+  AuroraIngressFromRAG:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref RAGSecurityGroup
+      Description: RAG service to Aurora PostgreSQL (for narrative storage)
+
+  AuroraIngressFromECG:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref ECGSecurityGroup
+      Description: ECG service to Aurora PostgreSQL (direct inference result write)
+
+  AuroraIngressFromCXR:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref CXRSecurityGroup
+      Description: CXR service to Aurora PostgreSQL (direct inference result write)
+
+  AuroraIngressFromLAB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref AuroraSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      SourceSecurityGroupId: !Ref LABSecurityGroup
+      Description: LAB service to Aurora PostgreSQL (direct inference result write)
+
   ###########################################################################
   # SG Egress Rules
   #
@@ -409,6 +520,16 @@ Resources:
       ToPort: 8000
       DestinationSecurityGroupId: !Ref CentralSecurityGroup
       Description: ALB to orchestrator
+
+  ALBEgressToRouter:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8004
+      ToPort: 8004
+      DestinationSecurityGroupId: !Ref RouterSecurityGroup
+      Description: ALB to router service
 
   CentralEgressToECG:
     Type: AWS::EC2::SecurityGroupEgress
@@ -500,6 +621,16 @@ Resources:
       DestinationSecurityGroupId: !ImportValue say2-6team-endpoints-sg
       Description: ECG to Interface VPC Endpoints
 
+  ECGEgressToAurora:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ECGSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref AuroraSecurityGroup
+      Description: ECG service to Aurora PostgreSQL (direct inference result write)
+
   CXREgressToEndpoints:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
@@ -510,6 +641,16 @@ Resources:
       DestinationSecurityGroupId: !ImportValue say2-6team-endpoints-sg
       Description: CXR to Interface VPC Endpoints
 
+  CXREgressToAurora:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref CXRSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref AuroraSecurityGroup
+      Description: CXR service to Aurora PostgreSQL (direct inference result write)
+
   LABEgressToEndpoints:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
@@ -519,6 +660,16 @@ Resources:
       ToPort: 443
       DestinationSecurityGroupId: !ImportValue say2-6team-endpoints-sg
       Description: LAB to Interface VPC Endpoints
+
+  LABEgressToAurora:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref LABSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref AuroraSecurityGroup
+      Description: LAB service to Aurora PostgreSQL (direct inference result write)
 
   ECGEgressHTTPSForS3Gateway:
     Type: AWS::EC2::SecurityGroupEgress
@@ -620,6 +771,77 @@ Resources:
       DestinationSecurityGroupId: !ImportValue say2-6team-endpoints-sg
       Description: HAPI to Interface VPC Endpoints for logs/secrets if needed
 
+  # Router egress rules
+  RouterEgressToECG:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8001
+      DestinationSecurityGroupId: !Ref ECGSecurityGroup
+      Description: Router to ECG service
+
+  RouterEgressToCXR:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8002
+      ToPort: 8002
+      DestinationSecurityGroupId: !Ref CXRSecurityGroup
+      Description: Router to CXR service
+
+  RouterEgressToLAB:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8003
+      ToPort: 8003
+      DestinationSecurityGroupId: !Ref LABSecurityGroup
+      Description: Router to LAB service
+
+  RouterEgressToRAG:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8000
+      ToPort: 8000
+      DestinationSecurityGroupId: !Ref RAGSecurityGroup
+      Description: Router to RAG service
+
+  RouterEgressToEndpoints:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      DestinationSecurityGroupId: !ImportValue say2-6team-endpoints-sg
+      Description: Router to Interface VPC Endpoints (Bedrock, Secrets Manager)
+
+  RouterEgressHTTPSForS3Gateway:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RouterSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      CidrIp: 0.0.0.0/0
+      Description: Router HTTPS egress for S3 Gateway Endpoint during dev
+
+  RAGEgressToAurora:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref RAGSecurityGroup
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      DestinationSecurityGroupId: !Ref AuroraSecurityGroup
+      Description: RAG service to Aurora PostgreSQL (for narrative storage)
+
   ###########################################################################
   # IAM Roles
   #
@@ -697,7 +919,7 @@ Resources:
           PolicyDocument:
             Version: "2012-10-17"
             Statement:
-              - Sid: InvokeFinalBedrockSynthesis
+              - Sid: InvokeBedrockForOrchestration
                 Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -718,12 +940,10 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:DescribeKey
                 Resource: !GetAtt ProjectKmsKey.Arn
-              - Sid: ProjectS3AccessDev
+              - Sid: ReadModalInputFromS3
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:PutObject
-                  - s3:DeleteObject
                   - s3:ListBucket
                 Resource:
                   - !Sub "arn:aws:s3:::${ProjectName}-*"
@@ -769,11 +989,10 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:DescribeKey
                 Resource: !GetAtt ProjectKmsKey.Arn
-              - Sid: ProjectS3AccessDev
+              - Sid: ReadModalInputFromS3
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:PutObject
                   - s3:ListBucket
                 Resource:
                   - !Sub "arn:aws:s3:::${ProjectName}-*"
@@ -819,11 +1038,10 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:DescribeKey
                 Resource: !GetAtt ProjectKmsKey.Arn
-              - Sid: ProjectS3AccessDev
+              - Sid: ReadModalInputFromS3
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:PutObject
                   - s3:ListBucket
                 Resource:
                   - !Sub "arn:aws:s3:::${ProjectName}-*"
@@ -869,11 +1087,10 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:DescribeKey
                 Resource: !GetAtt ProjectKmsKey.Arn
-              - Sid: ProjectS3AccessDev
+              - Sid: ReadModalInputFromS3
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:PutObject
                   - s3:ListBucket
                 Resource:
                   - !Sub "arn:aws:s3:::${ProjectName}-*"
@@ -906,17 +1123,21 @@ Resources:
             Statement:
               #################################################################
               # RAG service responsibility:
-              #   - Receive modal summaries as query from orchestrator.
-              #   - Create query embedding with Bedrock.
-              #   - Search ChromaDB/Vector DB.
-              #   - Return Top-K similar cases to orchestrator.
-              #   - Store current case embedding/search log.
+              #   - Receive modal results or context from orchestrator/router.
+              #   - Perform RAG search (ChromaDB/Vector DB).
+              #   - Assemble prompt with retrieved context.
+              #   - Invoke Bedrock (Claude) for automated narrative generation.
+              #   - Write generated narrative to Aurora PostgreSQL.
               #
-              # Orchestrator responsibility:
-              #   - Final Bedrock synthesis.
-              #   - Final DB write.
+              # Orchestrator (healthy path):
+              #   - Calls modal services via Cloud Map, collects results.
+              #   - Passes assembled context to RAG /generate.
+              #
+              # Router (fallback path, orchestrator down):
+              #   - Calls modal services via Cloud Map directly.
+              #   - Assembles context and passes to RAG /generate.
               #################################################################
-              - Sid: InvokeBedrockEmbeddingModel
+              - Sid: InvokeBedrockForNarrativeGeneration
                 Effect: Allow
                 Action:
                   - bedrock:InvokeModel
@@ -937,11 +1158,10 @@ Resources:
                   - kms:GenerateDataKey
                   - kms:DescribeKey
                 Resource: !GetAtt ProjectKmsKey.Arn
-              - Sid: ProjectS3AccessDev
+              - Sid: ReadModalInputFromS3
                 Effect: Allow
                 Action:
                   - s3:GetObject
-                  - s3:PutObject
                   - s3:ListBucket
                 Resource:
                   - !Sub "arn:aws:s3:::${ProjectName}-*"
@@ -956,12 +1176,51 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  RouterTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-router-task-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: !Sub "${ProjectName}-router-task-policy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: ReadProjectSecrets
+                Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource:
+                  - !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/*"
+              - Sid: UseProjectKmsKey
+                Effect: Allow
+                Action:
+                  - kms:Decrypt
+                  - kms:DescribeKey
+                Resource: !GetAtt ProjectKmsKey.Arn
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-router-task-role"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
   ###########################################################################
-  # WAF (Regional — ALB 직접 연결)
+  # WAF (Regional - direct ALB attachment)
   #
-  # CloudFront를 사용하지 않으므로 Scope=REGIONAL로 서울 리전에 배포.
-  # ALB ARN은 compute-stack 배포 후 WebACLAssociation으로 연결.
-  # 초기 dev 단계에서는 모든 규칙이 Count 모드 (차단 없이 관찰).
+  # Scope=REGIONAL deployed in ap-northeast-2 (no CloudFront).
+  # ALB ARN is associated via WebACLAssociation after compute-stack deploy.
+  # All rules are in Count mode during dev (observe only, no blocking).
   ###########################################################################
   RegionalWebACL:
     Type: AWS::WAFv2::WebACL
@@ -1146,6 +1405,12 @@ Outputs:
     Export:
       Name: !Sub "${ProjectName}-rag-sg"
 
+  RouterSecurityGroupId:
+    Description: Router service Security Group ID
+    Value: !Ref RouterSecurityGroup
+    Export:
+      Name: !Sub "${ProjectName}-router-sg"
+
   ChromaSecurityGroupId:
     Description: ChromaDB or Vector DB Security Group ID
     Value: !Ref ChromaSecurityGroup
@@ -1217,6 +1482,12 @@ Outputs:
     Value: !GetAtt RAGTaskRole.Arn
     Export:
       Name: !Sub "${ProjectName}-rag-task-role-arn"
+
+  RouterTaskRoleArn:
+    Description: Router Task Role ARN
+    Value: !GetAtt RouterTaskRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-router-task-role-arn"
 
   ###########################################################################
   # Cognito Exports

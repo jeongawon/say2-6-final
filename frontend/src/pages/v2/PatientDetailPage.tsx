@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity, FlaskConical, Image as ImageIcon, ChevronRight,
@@ -6,7 +6,10 @@ import {
 } from "lucide-react";
 import { AppShell } from "../../components/v2/AppShell";
 import { findPatient, type DemoPatient } from "../../lib/v2/demoStore";
-import { approveOrder, requestOrder, type AIRec, type ModalKey } from "../../lib/v2/api";
+import {
+  approveOrder, requestOrder, submitManualModalResult, getModalServiceStatus,
+  type AIRec, type ModalKey,
+} from "../../lib/v2/api";
 import { PatientInfoSidebar } from "../../components/v2/PatientInfoSidebar";
 import { LiveBadge } from "../../components/v2/LiveBadge";
 import { useEncounterData } from "../../lib/v2/useEncounterData";
@@ -50,10 +53,28 @@ export default function PatientDetailPage() {
     }, 5000);
   }
 
-  // 모달 추론 서버 ON/OFF (목업 — 배포 후 /ops/health 연동). 칩 클릭으로 데모 토글.
+  // 모달 추론 서버 ON/OFF
+  // — 30초마다 /route/status 자동 헬스체크. 실패 시 수동 토글로 데모 가능.
   const [servers, setServers] = useState<Record<ModalKey, boolean>>({ ECG: true, CXR: true, LAB: true });
   const [manualOpen, setManualOpen] = useState<ModalKey | null>(null);
   const [manualDone, setManualDone] = useState<Set<ModalKey>>(new Set());
+
+  // 30초마다 모달 서비스 헬스체크
+  useEffect(() => {
+    const checkServers = async () => {
+      const status = await getModalServiceStatus();
+      if (status) {
+        setServers({
+          ECG: status.ECG === "healthy",
+          CXR: status.CXR === "healthy",
+          LAB: status.LAB === "healthy",
+        });
+      }
+    };
+    checkServers();
+    const id = setInterval(checkServers, 30_000);
+    return () => clearInterval(id);
+  }, []);
 
   const resultsHref = encounterId
     ? `/demo/patient/${id}/results?encounter_id=${encounterId}`
@@ -109,6 +130,7 @@ export default function PatientDetailPage() {
       {manualOpen && (
         <ManualInputModal
           modality={manualOpen}
+          encounterId={encounterId}
           onClose={() => setManualOpen(null)}
           onSave={() => {
             setManualDone((s) => new Set(s).add(manualOpen));
@@ -425,12 +447,49 @@ function ManualOrderRow({
 }
 
 /* ── 직접 입력 팝업 모달 (추론 서버 OFF 시 의사 수기 입력) ── */
-function ManualInputModal({ modality, onClose, onSave }: {
-  modality: ModalKey; onClose: () => void; onSave: () => void;
+function ManualInputModal({ modality, encounterId, onClose, onSave }: {
+  modality: ModalKey;
+  encounterId: string | null;
+  onClose: () => void;
+  onSave: () => void;
 }) {
   const [findings, setFindings] = useState("");
   const [ecg, setEcg] = useState({ hr: "", pr: "", qrs: "", qt: "" });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const inputCls = "w-full h-9 px-3 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 dark:bg-vuno-bg dark:border-vuno-border dark:text-white text-sm focus:outline-none focus:bg-white dark:focus:bg-vuno-bg focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 transition-colors";
+
+  async function handleSave() {
+    if (!findings.trim()) return;
+    setSaving(true);
+    setError(null);
+
+    // ECG는 수치 필드 + 소견 텍스트를 합쳐서 하나의 문자열로 전송
+    let text = findings.trim();
+    if (modality === "ECG" && (ecg.hr || ecg.pr || ecg.qrs || ecg.qt)) {
+      const nums = [
+        ecg.hr && `HR ${ecg.hr}bpm`,
+        ecg.pr && `PR ${ecg.pr}ms`,
+        ecg.qrs && `QRS ${ecg.qrs}ms`,
+        ecg.qt && `QT ${ecg.qt}ms`,
+      ].filter(Boolean).join(", ");
+      text = `[측정값] ${nums}\n${text}`;
+    }
+
+    if (encounterId) {
+      const ok = await submitManualModalResult(encounterId, {
+        modality,
+        text,
+        summary: findings.trim().slice(0, 200),
+      });
+      if (!ok) {
+        setError("저장 실패 — 백엔드 연결을 확인하세요. 로컬에만 기록됩니다.");
+      }
+    }
+
+    setSaving(false);
+    onSave();
+  }
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4" onClick={onClose}>
@@ -451,6 +510,12 @@ function ManualInputModal({ modality, onClose, onSave }: {
           <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 rounded-lg px-2.5 py-2">
             <WifiOff className="h-3.5 w-3.5 flex-shrink-0" /> 추론 서버 OFF — 의사 수기 입력으로 기록됩니다.
           </div>
+
+          {error && (
+            <div className="text-[11px] text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 rounded-lg px-2.5 py-2">
+              {error}
+            </div>
+          )}
 
           {modality === "ECG" && (
             <div className="grid grid-cols-2 gap-2">
@@ -491,11 +556,12 @@ function ManualInputModal({ modality, onClose, onSave }: {
             취소
           </button>
           <button
-            onClick={onSave}
-            disabled={!findings.trim()}
+            onClick={handleSave}
+            disabled={!findings.trim() || saving}
             className="h-9 px-4 rounded-lg bg-brand-600 text-white hover:bg-brand-700 disabled:bg-slate-200 disabled:text-slate-400 dark:disabled:bg-vuno-bg dark:disabled:text-vuno-dim disabled:cursor-not-allowed text-[13px] font-bold inline-flex items-center gap-1.5 transition-colors"
           >
-            <CheckCircle2 className="h-4 w-4" /> 저장
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+            {saving ? "저장 중…" : "저장"}
           </button>
         </div>
       </div>

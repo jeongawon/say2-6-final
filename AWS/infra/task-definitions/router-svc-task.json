@@ -1,0 +1,80 @@
+{
+  "family": "say2-6team-router-svc-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "256",
+  "memory": "512",
+  "executionRoleArn": "arn:aws:iam::666803869796:role/say2-6team-ecs-execution-role",
+  "taskRoleArn": "arn:aws:iam::666803869796:role/say2-6team-router-task-role",
+  "containerDefinitions": [
+    {
+      "name": "router-svc",
+      "image": "666803869796.dkr.ecr.ap-northeast-2.amazonaws.com/say2-6team-router-svc:latest",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8004,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        {
+          "name": "ECG_SVC_URL",
+          "value": "http://ecg-svc.say2-6team.local:8001"
+        },
+        {
+          "name": "CXR_SVC_URL",
+          "value": "http://cxr-svc.say2-6team.local:8002"
+        },
+        {
+          "name": "LAB_SVC_URL",
+          "value": "http://lab-svc.say2-6team.local:8003"
+        },
+        {
+          "name": "RAG_SVC_URL",
+          "value": "http://rag-svc.say2-6team.local:8000"
+        },
+        {
+          "name": "PORT",
+          "value": "8004"
+        },
+        {
+          "name": "LOG_LEVEL",
+          "value": "INFO"
+        }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/drai/router",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "router"
+        }
+      },
+      "healthCheck": {
+        "command": [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8004/health')\" || exit 1"
+        ],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 10
+      }
+    }
+  ],
+  "tags": [
+    {
+      "key": "Project",
+      "value": "say2-6team"
+    },
+    {
+      "key": "Owner",
+      "value": "lji"
+    },
+    {
+      "key": "Environment",
+      "value": "dev"
+    }
+  ]
+}

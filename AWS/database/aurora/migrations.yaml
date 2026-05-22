@@ -1,13 +1,13 @@
 # ============================================================
-# Aurora Serverless v2 — 초기 마이그레이션 SQL
-# drai_ops 운영 DB 전용
+# Aurora Serverless v2 - Initial Migration SQL
+# Dedicated to drai_ops operations DB
 #
-# 실행 방법:
+# How to run:
 #   psql -U admin -d drai_ops -f schema.sql
-#   (또는 docker-entrypoint-initdb.d/ 로 자동 실행)
+#   (or auto-run via docker-entrypoint-initdb.d/)
 # ============================================================
 
-# ── 공통 Parameters ────────────────────────────────────────
+# -- Common Parameters ----------------------------------------
 parameters:
   ProjectName:
     type: String
@@ -34,7 +34,7 @@ common_tags:
 migrations:
 
   - version: "001"
-    description: "encounters 테이블 — 응급실 방문 1건"
+    description: "encounters table - one ER visit record"
     sql: |
       CREATE TABLE IF NOT EXISTS encounters (
           encounter_id       TEXT PRIMARY KEY,
@@ -55,7 +55,7 @@ migrations:
       CREATE INDEX IF NOT EXISTS idx_enc_status_start ON encounters(status, started_at DESC);
 
   - version: "002"
-    description: "modal_results 테이블 — 모달 원본 응답 (JSONB)"
+    description: "modal_results table - raw modal responses (JSONB)"
     sql: |
       CREATE TABLE IF NOT EXISTS modal_results (
           id                 BIGSERIAL PRIMARY KEY,
@@ -79,7 +79,7 @@ migrations:
       CREATE INDEX IF NOT EXISTS idx_mr_raw_gin    ON modal_results USING GIN (raw_response);
 
   - version: "003"
-    description: "diagnostic_reports 테이블 — 종합 판단 결과"
+    description: "diagnostic_reports table - comprehensive diagnostic results"
     sql: |
       CREATE TABLE IF NOT EXISTS diagnostic_reports (
           id                 BIGSERIAL PRIMARY KEY,
@@ -103,7 +103,7 @@ migrations:
       CREATE INDEX IF NOT EXISTS idx_dr_status  ON diagnostic_reports(status, created_at DESC);
 
   - version: "004"
-    description: "modal_events 테이블 — WebSocket 이벤트 로그"
+    description: "modal_events table - WebSocket event log"
     sql: |
       CREATE TABLE IF NOT EXISTS modal_events (
           id           BIGSERIAL PRIMARY KEY,
@@ -119,7 +119,7 @@ migrations:
       CREATE INDEX IF NOT EXISTS idx_me_type     ON modal_events(event_type);
 
   - version: "005"
-    description: "updated_at 자동 갱신 트리거"
+    description: "updated_at auto-update trigger"
     sql: |
       CREATE OR REPLACE FUNCTION _bump_updated_at() RETURNS TRIGGER AS $$
       BEGIN
@@ -134,7 +134,7 @@ migrations:
       FOR EACH ROW EXECUTE FUNCTION _bump_updated_at();
 
   - version: "006"
-    description: "subject_id 자동 채움 트리거 — 3개 테이블에 적용"
+    description: "subject_id auto-fill trigger - applied to 3 tables"
     sql: |
       CREATE OR REPLACE FUNCTION _fill_subject_id() RETURNS TRIGGER AS $$
       BEGIN
@@ -163,18 +163,18 @@ migrations:
       FOR EACH ROW EXECUTE FUNCTION _fill_subject_id();
 
   - version: "007"
-    description: "fhir_sync_queue 테이블 — HAPI 동기화 백로그 (Graceful Degradation)"
+    description: "fhir_sync_queue table - HAPI sync backlog (Graceful Degradation)"
     sql: |
-      -- HAPI 일시 다운 시 운영 DB INSERT는 정상 진행되고,
-      -- HAPI 동기화는 이 큐에 적재 → retry worker가 5분마다 백필.
-      -- 의사 화면은 HAPI 다운을 모르고 정상 동작.
+      -- When HAPI is temporarily down, operations DB INSERT proceeds normally,
+      -- and HAPI sync is queued here -> retry worker backfills every 5 minutes.
+      -- Physician screen is unaware of HAPI downtime and operates normally.
       CREATE TABLE IF NOT EXISTS fhir_sync_queue (
           id            BIGSERIAL PRIMARY KEY,
           encounter_id  TEXT NOT NULL,
           patient_id    TEXT,
           resource_type VARCHAR(40) NOT NULL,                  -- Patient/Encounter/ServiceRequest/Condition/...
-          resource_id   TEXT NOT NULL,                         -- 우리가 발급한 UUID (HAPI PUT 대상)
-          payload       JSONB NOT NULL,                        -- HAPI에 보낼 FHIR JSON 원본
+          resource_id   TEXT NOT NULL,                         -- UUID we issued (HAPI PUT target)
+          payload       JSONB NOT NULL,                        -- Original FHIR JSON to send to HAPI
           status        VARCHAR(20) NOT NULL DEFAULT 'pending',-- pending / synced / failed
           retry_count   INTEGER NOT NULL DEFAULT 0,
           last_error    TEXT,
@@ -182,7 +182,7 @@ migrations:
           synced_at     TIMESTAMPTZ
       );
 
-      -- 부분 인덱스 — pending row만 빠르게 (worker가 매번 스캔)
+      -- Partial index - fast lookup for pending rows only (worker scans every time)
       CREATE INDEX IF NOT EXISTS idx_fsq_pending
           ON fhir_sync_queue(status, created_at)
           WHERE status = 'pending';
@@ -191,35 +191,35 @@ migrations:
           ON fhir_sync_queue(encounter_id);
 
   - version: "008"
-    description: "device_tokens 테이블 — 모바일 푸시 알림 토큰 (FCM / APNs / Web Push)"
+    description: "device_tokens table - mobile push notification tokens (FCM / APNs / Web Push)"
     sql: |
-      -- Flutter 앱이 시작 시 POST /devices/register 로 토큰 업서트.
-      -- 백엔드는 critical 이벤트 발생 시 활성 토큰들에 푸시 발송.
+      -- Flutter app upserts token via POST /devices/register on startup.
+      -- Backend sends push to active tokens when critical events occur.
       CREATE TABLE IF NOT EXISTS device_tokens (
           id           BIGSERIAL PRIMARY KEY,
-          user_id      TEXT,                                  -- Cognito sub or physician id (nullable: 익명 단말 허용)
-          token        TEXT NOT NULL UNIQUE,                  -- FCM/APNs 푸시 토큰 (UPSERT 키)
+          user_id      TEXT,                                  -- Cognito sub or physician id (nullable: anonymous device allowed)
+          token        TEXT NOT NULL UNIQUE,                  -- FCM/APNs push token (UPSERT key)
           platform     VARCHAR(20) NOT NULL,                  -- 'ios' | 'android' | 'web'
           app_version  VARCHAR(20),
-          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),    -- 같은 토큰 재등록 시 갱신
+          last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),    -- Updated on re-registration with same token
           created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
 
       CREATE INDEX IF NOT EXISTS idx_dt_user     ON device_tokens(user_id);
       CREATE INDEX IF NOT EXISTS idx_dt_platform ON device_tokens(platform);
-      -- 활성 토큰만 빠르게 — 30일 내 last_seen
+      -- Fast lookup for active tokens - last_seen within 30 days
       CREATE INDEX IF NOT EXISTS idx_dt_active   ON device_tokens(last_seen_at DESC);
 
   - version: "009"
-    description: "diagnostic_reports.last_reminder_at — 5분 미서명 리마인더 워커용"
+    description: "diagnostic_reports.last_reminder_at - for 5-minute unsigned reminder worker"
     sql: |
-      -- 의사가 소견서를 5분간 서명 안 하면 FCM 리마인더 푸시.
-      -- 같은 row에 또 보내는 걸 방지하려고 last_reminder_at 컬럼으로 발송 시각 기록.
-      -- NULL이면 아직 한 번도 보낸 적 없음.
+      -- If a physician does not sign a report within 5 minutes, send an FCM reminder push.
+      -- To prevent sending to the same row again, record the send time in last_reminder_at column.
+      -- NULL means it has never been sent.
       ALTER TABLE diagnostic_reports
         ADD COLUMN IF NOT EXISTS last_reminder_at TIMESTAMPTZ;
 
-      -- 워커가 미서명 + 5분 경과한 row를 빠르게 찾도록 부분 인덱스
+      -- Partial index for worker to quickly find unsigned rows older than 5 minutes
       CREATE INDEX IF NOT EXISTS idx_dr_unsigned_reminder
         ON diagnostic_reports(created_at, last_reminder_at)
         WHERE status <> 'signed';

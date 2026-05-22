@@ -19,6 +19,7 @@ import {
 import { useAuth, canEditReport } from "../../lib/v2/auth";
 import {
   getModalResults, generateReport, getReportByEncounter, reviewReport, signReport,
+  analyzeViaRouter,
   type ModalResults, type ReportStatus,
 } from "../../lib/v2/api";
 import { CXRView, ECGView, LabView } from "../../components/modal-views/ModalViews";
@@ -77,6 +78,7 @@ export default function ReportEditorPage() {
   const [reportStatus, setReportStatus] = useState<ReportStatus>(
     () => getLocalReportStatus(id) ?? "preliminary",
   );
+  const [ragAvailable, setRagAvailable] = useState<boolean | null>(null); // null = 아직 모름
   const initialSignature = getLocalReportSignature(id) ?? "";
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -111,6 +113,9 @@ export default function ReportEditorPage() {
         if (stopped || !r) return;
         if (r.report_id != null) setReportId(Number(r.report_id));
         setReportStatus("preliminary");
+        // rag_available false면 유사 사례 없이 생성된 소견임을 표시
+        if (r.rag_available === false) setRagAvailable(false);
+        else if (r.rag_available === true) setRagAvailable(true);
         // r.narrative(Bedrock 장문)는 DB에 ai_diagnosis로 저장되지만 본문엔 사용하지 않음
         // 알림 패널/리스트 즉시 새로고침 — preliminary 상태가 '서명 필요'로 즉시 뜨도록.
         window.dispatchEvent(new Event("say6:reports:invalidate"));
@@ -145,6 +150,7 @@ export default function ReportEditorPage() {
           reportId={reportId}
           reportStatus={reportStatus}
           initialSignature={initialSignature}
+          ragAvailable={ragAvailable}
           onGoToReports={() => nav("/demo/reports")}
         />
       </div>
@@ -828,7 +834,7 @@ const STATUS_STEPS: { key: StepKey; label: string }[] = [
 ];
 
 function PaneAISummary({
-  patient, canEdit, aiNarrative, reportId, reportStatus, initialSignature, onGoToReports,
+  patient, canEdit, aiNarrative, reportId, reportStatus, initialSignature, ragAvailable, onGoToReports,
 }: {
   patient: DemoPatient;
   canEdit: boolean;
@@ -836,6 +842,7 @@ function PaneAISummary({
   reportId: number | null;
   reportStatus: ReportStatus;
   initialSignature: string;
+  ragAvailable: boolean | null;
   onGoToReports: () => void;
 }) {
   const rec = patient.recommendation;
@@ -961,6 +968,14 @@ function PaneAISummary({
     >
       {/* 상태 진행 단계 — 초안 → 검토 → 서명 → EMR 전송 */}
       <div className="flex items-center gap-1 mb-3">
+
+      {/* RAG 장애 안내 배너 */}
+      {ragAvailable === false && (
+        <div className="mb-3 flex items-start gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 rounded-lg px-2.5 py-2">
+          <span className="flex-shrink-0 mt-0.5">⚠</span>
+          <span>RAG 서비스 장애로 유사 사례 검색 없이 생성된 소견입니다. 임상 판단을 보완하여 검토하세요.</span>
+        </div>
+      )}
         {STATUS_STEPS.map((s, i) => (
           <div key={s.key} className="flex items-center gap-1">
             <span className={cn(

@@ -2,12 +2,12 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >
   say2-6team Aurora Serverless v2 stack - PostgreSQL 16 cluster with
   KMS encryption, Secrets Manager rotation, writer + reader instances.
-  Hosts two logical databases: central_db (운영 - AI 결과·소견·이벤트)
-  and hapi (FHIR R4 - HAPI 서버 전용).
+  Hosts two logical databases: central_db (operations - AI results, reports, events)
+  and hapi (FHIR R4 - dedicated to HAPI server).
 
-  의존: network-stack (private data subnets, VPC). ImportValue로 가져옴.
-  배포 후 migrations.yaml의 SQL을 RDS Data API 또는 ECS Task로 실행하여
-  6개 운영 테이블 생성.
+  Depends on: network-stack (private data subnets, VPC). Imported via ImportValue.
+  After deployment, run the SQL in migrations.yaml via RDS Data API or ECS Task
+  to create the 6 operational tables.
 
 Metadata:
   Project:
@@ -81,7 +81,7 @@ Parameters:
   PreferredBackupWindow:
     Type: String
     Default: "03:00-04:00"
-    Description: Daily backup window in UTC (KST 12:00-13:00 - low ER traffic in Korea midnight... actually UTC 03-04 = KST 12-13, our 점심시간).
+    Description: Daily backup window in UTC (UTC 03-04 = KST 12-13, low ER traffic during lunch hour).
 
   EnableRotation:
     Type: String
@@ -101,9 +101,9 @@ Conditions:
 Resources:
 # ============================================================================
 
-  # ─────────────────────────────────────────────────────────────────
-  # 1. KMS - Aurora 디스크 암호화 키 (customer-managed)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
+  # 1. KMS - Aurora disk encryption key (customer-managed)
+  # ===========================================================
   AuroraKmsKey:
     Type: AWS::KMS::Key
     Properties:
@@ -142,9 +142,9 @@ Resources:
       AliasName: !Sub "alias/${ProjectName}-aurora-kms"
       TargetKeyId: !Ref AuroraKmsKey
 
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   # 2. Secrets Manager - master credentials (auto-generated password)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   AuroraMasterSecret:
     Type: AWS::SecretsManager::Secret
     Properties:
@@ -165,48 +165,15 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # ─────────────────────────────────────────────────────────────────
-  # 3. Aurora Security Group - port 5432 from app subnets only
-  # ─────────────────────────────────────────────────────────────────
-  AuroraSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupName: !Sub "${ProjectName}-aurora-sg"
-      GroupDescription: "Aurora Serverless v2 - accepts 5432 from private app subnets"
-      VpcId:
-        Fn::ImportValue: !Sub "${ProjectName}-vpc-id"
-      SecurityGroupIngress:
-        # 중앙백엔드 (ECS) + HAPI FHIR (ECS) 모두 PrivateApp CIDR에서 옴
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 10.0.10.0/24
-          Description: "ECS PrivateApp subnet-a → Aurora"
-        - IpProtocol: tcp
-          FromPort: 5432
-          ToPort: 5432
-          CidrIp: 10.0.11.0/24
-          Description: "ECS PrivateApp subnet-c → Aurora"
-      SecurityGroupEgress:
-        # Aurora는 outbound 필요 없음 (KMS/SecretsManager는 VPC Endpoint 사용)
-        - IpProtocol: tcp
-          FromPort: 443
-          ToPort: 443
-          CidrIp: 0.0.0.0/0
-          Description: "AWS service endpoints (KMS, Secrets Manager via VPCE)"
-      Tags:
-        - Key: Name
-          Value: !Sub "${ProjectName}-aurora-sg"
-        - Key: Project
-          Value: !Ref ProjectName
-        - Key: Environment
-          Value: !Ref Environment
-        - Key: Owner
-          Value: !Ref Owner
+  # ===========================================================
+  # 3. NOTE: Aurora Security Group is managed by security-stack.
+  #    Imported via: !ImportValue say2-6team-aurora-sg
+  #    aurora-stack does NOT create its own SG to avoid conflicts.
+  # ===========================================================
 
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   # 4. DB Subnet Group - 2 private data subnets across AZ-a/AZ-c
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   AuroraSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -223,23 +190,23 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # ─────────────────────────────────────────────────────────────────
-  # 5. DB Cluster Parameter Group - pgaudit + ssl 강제
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
+  # 5. DB Cluster Parameter Group - pgaudit + ssl enforcement
+  # ===========================================================
   AuroraClusterParamGroup:
     Type: AWS::RDS::DBClusterParameterGroup
     Properties:
       Description: !Sub "${ProjectName} Aurora cluster params - pgaudit, ssl required"
       Family: aurora-postgresql16
       Parameters:
-        # 클라이언트 TLS 강제
+        # Enforce client TLS
         rds.force_ssl: "1"
-        # 감사 로그 (HIPAA 6년 보관)
+        # Audit logging (HIPAA 6-year retention)
         shared_preload_libraries: pgaudit
         pgaudit.log: "write,ddl"
         pgaudit.log_catalog: "0"
         pgaudit.log_parameter: "1"
-        # 슬로우 쿼리 로깅
+        # Slow query logging
         log_min_duration_statement: "1000"
       Tags:
         - Key: Project
@@ -249,9 +216,9 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   # 6. Aurora DB Cluster - Serverless v2 (PostgreSQL 16)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
   AuroraCluster:
     Type: AWS::RDS::DBCluster
     DeletionPolicy: Snapshot
@@ -261,25 +228,25 @@ Resources:
       Engine: aurora-postgresql
       EngineVersion: !Ref EngineVersion
       EngineMode: provisioned       # Serverless v2 uses 'provisioned' + ServerlessV2ScalingConfiguration
-      DatabaseName: central_db       # 운영 DB. hapi는 마이그레이션 SQL로 CREATE DATABASE
+      DatabaseName: central_db       # Operations DB. hapi is created via migration SQL with CREATE DATABASE
       MasterUsername: !Sub "{{resolve:secretsmanager:${AuroraMasterSecret}::username}}"
       MasterUserPassword: !Sub "{{resolve:secretsmanager:${AuroraMasterSecret}::password}}"
 
       DBSubnetGroupName: !Ref AuroraSubnetGroup
       VpcSecurityGroupIds:
-        - !Ref AuroraSecurityGroup
+        - !ImportValue say2-6team-aurora-sg
       DBClusterParameterGroupName: !Ref AuroraClusterParamGroup
 
       Port: 5432
       StorageEncrypted: true
       KmsKeyId: !Ref AuroraKmsKey
 
-      EnableIAMDatabaseAuthentication: true   # IAM Role 기반 접근 (앱 쪽)
-      EnableHttpEndpoint: true                 # RDS Data API (마이그레이션 실행용)
+      EnableIAMDatabaseAuthentication: true   # IAM Role-based access (for app layer)
+      EnableHttpEndpoint: true                 # RDS Data API (for running migrations)
 
       BackupRetentionPeriod: !Ref BackupRetentionDays
       PreferredBackupWindow: !Ref PreferredBackupWindow
-      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"   # UTC = KST Sun 13:00-14:00
+      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"   # UTC (KST Sun 13:00-14:00)
       DeletionProtection: true
       CopyTagsToSnapshot: true
 
@@ -300,7 +267,7 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # Secrets Manager ↔ Cluster 연결 (rotation lambda가 어느 클러스터인지 인식)
+  # Secrets Manager <-> Cluster link (so rotation lambda knows which cluster to target)
   AuroraSecretAttachment:
     Type: AWS::SecretsManager::SecretTargetAttachment
     Properties:
@@ -308,9 +275,9 @@ Resources:
       TargetId: !Ref AuroraCluster
       TargetType: AWS::RDS::DBCluster
 
-  # ─────────────────────────────────────────────────────────────────
-  # 7. 30-day rotation (AWS-managed Lambda - 자동 생성됨)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
+  # 7. 30-day rotation (AWS-managed Lambda - auto-created)
+  # ===========================================================
   AuroraSecretRotation:
     Type: AWS::SecretsManager::RotationSchedule
     Condition: RotationEnabled
@@ -325,13 +292,13 @@ Resources:
             - ","
             - - Fn::ImportValue: !Sub "${ProjectName}-private-data-subnet-a"
               - Fn::ImportValue: !Sub "${ProjectName}-private-data-subnet-c"
-        VpcSecurityGroupIds: !Ref AuroraSecurityGroup
+        VpcSecurityGroupIds: !ImportValue say2-6team-aurora-sg
       RotationRules:
         AutomaticallyAfterDays: 30
 
-  # ─────────────────────────────────────────────────────────────────
-  # 8. Writer 인스턴스 (Primary)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
+  # 8. Writer instance (Primary)
+  # ===========================================================
   AuroraWriterInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -354,9 +321,9 @@ Resources:
         - Key: Owner
           Value: !Ref Owner
 
-  # ─────────────────────────────────────────────────────────────────
-  # 9. Reader 인스턴스 (Replica, 고가용성)
-  # ─────────────────────────────────────────────────────────────────
+  # ===========================================================
+  # 9. Reader instance (Replica, high availability)
+  # ===========================================================
   AuroraReaderInstance:
     Type: AWS::RDS::DBInstance
     Properties:
@@ -364,7 +331,7 @@ Resources:
       DBClusterIdentifier: !Ref AuroraCluster
       DBInstanceClass: db.serverless
       Engine: aurora-postgresql
-      PromotionTier: 1                  # writer 다운 시 자동 승격 후보
+      PromotionTier: 1                  # Failover candidate when writer goes down
       PubliclyAccessible: false
       EnablePerformanceInsights: true
       PerformanceInsightsKMSKeyId: !Ref AuroraKmsKey
@@ -419,8 +386,8 @@ Outputs:
       Name: !Sub "${ProjectName}-aurora-secret-arn"
 
   SecurityGroupId:
-    Description: Aurora SG - apps need to allow egress to this SG
-    Value: !GetAtt AuroraSecurityGroup.GroupId
+    Description: Aurora SG ID (managed by security-stack)
+    Value: !ImportValue say2-6team-aurora-sg
     Export:
       Name: !Sub "${ProjectName}-aurora-sg-id"
 

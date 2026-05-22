@@ -1,0 +1,284 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >
+  say2-6team Data-RAG stack - S3 bucket for RAG DB, ECR repository,
+  ECS Task Definition, ECS Service, and Cloud Map service registration.
+  Deploy in ap-northeast-2.
+
+Metadata:
+  Project:
+    Name: say2-6team
+    Purpose: RAG service infrastructure (read-only ChromaDB via S3 download)
+  Notes:
+    - ChromaDB runs inside the RAG container as PersistentClient (file mode).
+    - No separate ChromaDB server/sidecar needed.
+    - Task downloads DB from S3 at startup (~372MB, ~30s).
+    - DB updates are done offline (6-month cycle) and re-uploaded to S3.
+    - ECSClusterArn parameter is PENDING until compute-stack provides it.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: say2-6team
+    Description: Project prefix for naming and tags.
+
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+    Description: Deployment environment.
+
+  Owner:
+    Type: String
+    Default: yji
+    AllowedValues:
+      - unassigned
+      - wja
+      - lji
+      - hkt
+      - yji
+    Description: Resource owner tag value.
+
+  ECSClusterArn:
+    Type: String
+    Default: "PENDING-FROM-COMPUTE-STACK"
+    Description: >
+      ECS Cluster ARN from compute-stack.
+      Update this parameter after lji provides the Cluster ARN.
+      Run: aws cloudformation update-stack --parameters ParameterKey=ECSClusterArn,ParameterValue=<actual-arn>
+
+  RAGContainerImage:
+    Type: String
+    Default: "PENDING-ECR-IMAGE-URI"
+    Description: >
+      RAG API container image URI (ECR).
+      Update after building and pushing the Docker image.
+
+  RAGTaskCpu:
+    Type: String
+    Default: "512"
+    AllowedValues:
+      - "256"
+      - "512"
+      - "1024"
+    Description: Fargate task CPU units (512 = 0.5 vCPU).
+
+  RAGTaskMemory:
+    Type: String
+    Default: "1024"
+    AllowedValues:
+      - "512"
+      - "1024"
+      - "2048"
+    Description: Fargate task memory in MB.
+
+Conditions:
+  ClusterReady: !Not [!Equals [!Ref ECSClusterArn, "PENDING-FROM-COMPUTE-STACK"]]
+  ImageReady: !Not [!Equals [!Ref RAGContainerImage, "PENDING-ECR-IMAGE-URI"]]
+  CanDeployService: !And
+    - !Condition ClusterReady
+    - !Condition ImageReady
+
+Resources:
+  ###########################################################################
+  # S3 Bucket - RAG DB Storage
+  ###########################################################################
+  RAGDBBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Sub "${ProjectName}-rag-db-${AWS::AccountId}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rag-db"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: DataType
+          Value: rag-vector-db
+
+  ###########################################################################
+  # ECR Repository - RAG API Image
+  ###########################################################################
+  RAGECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub "${ProjectName}-rag-api"
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 5 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 5
+                },
+                "action": {
+                  "type": "expire"
+                }
+              }
+            ]
+          }
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rag-api"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+  ###########################################################################
+  # ECS Task Definition - RAG API (read-only ChromaDB inside)
+  ###########################################################################
+  RAGTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Condition: ImageReady
+    Properties:
+      Family: !Sub "${ProjectName}-rag-task"
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: !Ref RAGTaskCpu
+      Memory: !Ref RAGTaskMemory
+      ExecutionRoleArn: !ImportValue say2-6team-ecs-execution-role-arn
+      TaskRoleArn: !ImportValue say2-6team-rag-task-role-arn
+      ContainerDefinitions:
+        - Name: rag-api
+          Image: !Ref RAGContainerImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 8000
+              Protocol: tcp
+          Environment:
+            - Name: CHROMA_MODE
+              Value: local
+            - Name: CHROMA_DB_DIR
+              Value: ./local_rag_db
+            - Name: RAG_DB_BUCKET
+              Value: !Ref RAGDBBucket
+            - Name: EMBED_CACHE_ENABLED
+              Value: "false"
+            - Name: AWS_DEFAULT_REGION
+              Value: !Ref AWS::Region
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Sub "/ecs/${ProjectName}-rag"
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: rag-api
+              awslogs-create-group: "true"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rag-task"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+  ###########################################################################
+  # Cloud Map Service - RAG Service Discovery
+  ###########################################################################
+  RAGCloudMapService:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: rag-svc
+      NamespaceId: !ImportValue say2-6team-cloud-map-namespace-id
+      DnsConfig:
+        DnsRecords:
+          - Type: A
+            TTL: 60
+      HealthCheckCustomConfig:
+        FailureThreshold: 1
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rag-svc"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+  ###########################################################################
+  # ECS Service - RAG Fargate Service
+  ###########################################################################
+  RAGService:
+    Type: AWS::ECS::Service
+    Condition: CanDeployService
+    Properties:
+      ServiceName: !Sub "${ProjectName}-rag-svc"
+      Cluster: !Ref ECSClusterArn
+      TaskDefinition: !Ref RAGTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !ImportValue say2-6team-private-app-subnet-a
+            - !ImportValue say2-6team-private-app-subnet-c
+          SecurityGroups:
+            - !ImportValue say2-6team-rag-sg
+      ServiceRegistries:
+        - RegistryArn: !GetAtt RAGCloudMapService.Arn
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rag-svc"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Owner
+          Value: !Ref Owner
+        - Key: Environment
+          Value: !Ref Environment
+
+Outputs:
+  RAGDBBucketName:
+    Description: S3 bucket for RAG ChromaDB files
+    Value: !Ref RAGDBBucket
+    Export:
+      Name: !Sub "${ProjectName}-rag-db-bucket"
+
+  RAGDBBucketArn:
+    Description: S3 bucket ARN for RAG DB
+    Value: !GetAtt RAGDBBucket.Arn
+
+  RAGECRRepositoryUri:
+    Description: ECR repository URI for RAG API image
+    Value: !GetAtt RAGECRRepository.RepositoryUri
+    Export:
+      Name: !Sub "${ProjectName}-rag-ecr-uri"
+
+  RAGCloudMapServiceArn:
+    Description: Cloud Map service ARN for RAG
+    Value: !GetAtt RAGCloudMapService.Arn
+
+  RAGServiceDNS:
+    Description: DNS name for RAG service (use from orchestrator)
+    Value: !Sub "rag-svc.${ProjectName}.local"

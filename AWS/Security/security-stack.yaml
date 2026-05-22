@@ -317,6 +317,16 @@ Resources:
       SourceSecurityGroupId: !Ref CentralSecurityGroup
       Description: Orchestrator to ECG service
 
+  ECGIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref ECGSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8001
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: ALB health check to ECG service
+
   CXRIngressFromCentral:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -327,6 +337,16 @@ Resources:
       SourceSecurityGroupId: !Ref CentralSecurityGroup
       Description: Orchestrator to CXR service
 
+  CXRIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref CXRSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8002
+      ToPort: 8002
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: ALB health check to CXR service
+
   LABIngressFromCentral:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -336,6 +356,16 @@ Resources:
       ToPort: 8003
       SourceSecurityGroupId: !Ref CentralSecurityGroup
       Description: Orchestrator to LAB service
+
+  LABIngressFromALB:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref LABSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8003
+      ToPort: 8003
+      SourceSecurityGroupId: !Ref ALBSecurityGroup
+      Description: ALB health check to LAB service
 
   RAGIngressFromCentral:
     Type: AWS::EC2::SecurityGroupIngress
@@ -409,6 +439,36 @@ Resources:
       ToPort: 8000
       DestinationSecurityGroupId: !Ref CentralSecurityGroup
       Description: ALB to orchestrator
+
+  ALBEgressToECG:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8001
+      ToPort: 8001
+      DestinationSecurityGroupId: !Ref ECGSecurityGroup
+      Description: ALB health check to ECG service
+
+  ALBEgressToCXR:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8002
+      ToPort: 8002
+      DestinationSecurityGroupId: !Ref CXRSecurityGroup
+      Description: ALB health check to CXR service
+
+  ALBEgressToLAB:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref ALBSecurityGroup
+      IpProtocol: tcp
+      FromPort: 8003
+      ToPort: 8003
+      DestinationSecurityGroupId: !Ref LABSecurityGroup
+      Description: ALB health check to LAB service
 
   CentralEgressToECG:
     Type: AWS::EC2::SecurityGroupEgress
@@ -1037,24 +1097,38 @@ Resources:
   ###########################################################################
   # Cognito
   #
-  # Current version:
-  #   - Cognito is included to give frontend/backend teams stable IDs early.
-  #   - CallbackUrl and LogoutUrl default to localhost placeholders.
+  # 변경 이력:
+  #   - v1: email 기반 로그인 (초기 placeholder)
+  #   - v2 (현재): 사번(username) 기반 로그인, email은 alias (복구용)
   #
-  # Why not final:
-  #   - Final frontend domain and CloudFront domain may not be available yet.
+  # 설계 의도:
+  #   - 의사/간호사가 사번(DR001, NR001 등)으로 로그인
+  #   - email은 AliasAttributes로 유지 (계정 복구, 알림용)
+  #   - AdminCreateUserOnly: true → 관리자가 사번으로 사용자 생성
+  #   - custom:role 속성 추가 → 향후 SSO/SAML IdP 연동 시 역할 매핑 용이
   #
-  # Next steps:
-  #   - After frontend/CloudFront domain is finalized, update this stack with
-  #     the final HTTPS callback/logout URLs.
-  #   - Review OAuth flow/scopes with frontend implementation.
-  #   - Consider MFA only after initial login flow is working.
+  # SSO 확장 계획:
+  #   - 병원 SSO(SAML 2.0) 연동 시:
+  #     1. AWS::Cognito::UserPoolIdentityProvider (SAML type) 리소스 추가
+  #     2. SupportedIdentityProviders에 해당 IdP 추가
+  #     3. AttributeMapping으로 사번/역할 자동 매핑
+  #   - Google/외부 IdP 연동 시:
+  #     1. AWS::Cognito::UserPoolIdentityProvider (OIDC type) 리소스 추가
+  #     2. SupportedIdentityProviders에 Google 추가
+  #   - 현재 구조에서 IdP 추가만으로 SSO 전환 가능 (Pool 재생성 불필요)
+  #
+  # ⚠️ 주의:
+  #   - UsernameAttributes → AliasAttributes 변경으로 CFN이 Pool을 재생성함
+  #   - 새 UserPool ID / Client ID 발급됨
+  #   - 기존 사용자 삭제됨 → 사번으로 재생성 필요
+  #   - .env 및 프론트엔드 설정 갱신 필요
   ###########################################################################
   CognitoUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
       UserPoolName: !Sub "${ProjectName}-user-pool"
-      UsernameAttributes:
+      # UsernameAttributes 제거 — username을 사번(DR001, NR001)으로 직접 사용
+      AliasAttributes:
         - email
       AutoVerifiedAttributes:
         - email
@@ -1062,6 +1136,20 @@ Resources:
         RecoveryMechanisms:
           - Name: verified_email
             Priority: 1
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        # SSO 연동 시 IdP에서 전달받을 역할 속성 (doctor, nurse, admin 등)
+        - Name: custom:role
+          AttributeDataType: String
+          Mutable: true
+          Required: false
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -1070,7 +1158,10 @@ Resources:
           RequireNumbers: true
           RequireSymbols: false
       AdminCreateUserConfig:
-        AllowAdminCreateUserOnly: false
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: !Sub "[${ProjectName}] 계정이 생성되었습니다"
+          EmailMessage: "사번: {username}, 임시 비밀번호: {####}\n첫 로그인 시 비밀번호를 변경해주세요."
       UserPoolTags:
         Project: !Ref ProjectName
         Owner: !Ref Owner
@@ -1086,8 +1177,11 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+        # 관리자가 사번+임시비밀번호로 사용자 생성 후 초기 로그인 지원
+        - ALLOW_ADMIN_USER_PASSWORD_AUTH
       SupportedIdentityProviders:
         - COGNITO
+        # SSO 추가 시 여기에 IdP name 추가 (예: "Google", "HospitalSAML")
       AllowedOAuthFlowsUserPoolClient: true
       AllowedOAuthFlows:
         - code
@@ -1099,6 +1193,14 @@ Resources:
         - !Ref CognitoCallbackUrl
       LogoutURLs:
         - !Ref CognitoLogoutUrl
+      # SSO 추가 시 토큰 유효 시간 조정 가능
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
 
   CognitoUserPoolDomain:
     Type: AWS::Cognito::UserPoolDomain

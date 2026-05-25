@@ -1,4 +1,5 @@
 
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/ai_rec.dart';
@@ -125,3 +126,6 @@ Future<void> requestOrder(
   await Future.delayed(const Duration(milliseconds: 400));
   ref.invalidate(patientDetailProvider(encounterId));
 }
+
+
+

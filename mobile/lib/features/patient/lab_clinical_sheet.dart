@@ -166,13 +166,7 @@ Future<void> showLabClinicalSheet(
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppColors.slate300),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(20),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(4),
             ),
             child: LabClinicalSheet(
               patientName: patientName,
@@ -635,9 +629,9 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: AppColors.slate600));
+          color: AppColors.slate900));
 }
 
 class _ColH extends StatelessWidget {

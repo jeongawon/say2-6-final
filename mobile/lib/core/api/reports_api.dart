@@ -15,6 +15,9 @@ class ReportData {
   final String? aiRiskLevel;
   final DateTime? createdAt;
   final DateTime? signedAt;
+  /// RAG 유사 사례 — generate 응답의 similar_cases (소견 근거 자료에 표시).
+  /// 기존 소견서 조회(by-encounter)에는 없을 수 있어 기본 빈 리스트.
+  final List<Map<String, dynamic>> similarCases;
 
   const ReportData({
     required this.id,
@@ -29,6 +32,7 @@ class ReportData {
     this.aiRiskLevel,
     this.createdAt,
     this.signedAt,
+    this.similarCases = const [],
   });
 
   factory ReportData.fromJson(Map<String, dynamic> j) => ReportData(
@@ -44,6 +48,9 @@ class ReportData {
         aiRiskLevel: j['ai_risk_level'] as String?,
         createdAt: DateTime.tryParse(j['created_at'] as String? ?? ''),
         signedAt: DateTime.tryParse(j['signed_at'] as String? ?? ''),
+        similarCases: ((j['similar_cases'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList(),
       );
 }
 
@@ -89,6 +96,9 @@ final reportProvider = FutureProvider.autoDispose
     encounterId: encounterId,
     status: (data['status'] as String?) ?? 'preliminary',
     aiDiagnosis: data['narrative'] as String?,
+    similarCases: ((data['similar_cases'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList(),
   );
 });
 

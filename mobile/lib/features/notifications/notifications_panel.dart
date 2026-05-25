@@ -40,20 +40,12 @@ class NotificationsPanel extends ConsumerWidget {
           // signed/amended는 어떤 섹션에도 X
           final pending =
               rows.where((r) => r.status != 'signed' && r.status != 'amended').toList();
-          bool isOverdue(ReportData r) {
-            final e = _elapsedMin(r.createdAt);
-            return e != null && e >= _overdueMin;
-          }
-          // 검사 완료·작성 가능: 0~5분 (preliminary만)
-          final ready = pending
-              .where((r) => r.status == 'preliminary' && !isOverdue(r))
-              .toList();
-          // 미서명 소견서: 5분 경과 (preliminary or reviewed)
-          final unsigned = pending
-              .where((r) =>
-                  (r.status == 'preliminary' || r.status == 'reviewed') &&
-                  isOverdue(r))
-              .toList();
+          // 소견서 생성 완료 · 확정 대기: preliminary (경과 시간 무관 — 항상 파랑)
+          final ready =
+              pending.where((r) => r.status == 'preliminary').toList();
+          // 미서명 소견서: 검토했으나 아직 서명 안 함 (reviewed)
+          final unsigned =
+              pending.where((r) => r.status == 'reviewed').toList();
           final critical =
               pending.where((r) => r.aiRiskLevel == 'critical').toList();
           final total = unsigned.length + critical.length + ready.length;
@@ -70,18 +62,23 @@ class NotificationsPanel extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.notifications_outlined, size: 20),
+                    const Icon(Icons.notifications_outlined,
+                        size: 20, color: AppColors.slate600),
                     const SizedBox(width: 8),
                     const Text('알림',
                         style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold)),
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.slate900)),
                     const SizedBox(width: 8),
                     Text('$total건',
                         style: const TextStyle(
-                            fontSize: 12, color: AppColors.slate500)),
+                            fontSize: 11,
+                            color: AppColors.slate400,
+                            fontFeatures: [FontFeature.tabularFigures()])),
                     const Spacer(),
                     IconButton(
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(Icons.close, color: AppColors.slate600),
                       onPressed: () => Navigator.of(context).pop(),
                     ),
                   ],
@@ -96,26 +93,27 @@ class NotificationsPanel extends ConsumerWidget {
                     : ListView(
                         children: [
                           _Section(
-                            title: '미서명 소견서',
-                            color: const Color(0xFF7C3AED),
-                            bg: const Color(0xFFF5F3FF),
-                            icon: Icons.description_outlined,
-                            rows: unsigned,
-                            showElapsed: true,
-                          ),
-                          _Section(
                             title: 'Critical 환자',
-                            color: const Color(0xFFDC2626),
-                            bg: const Color(0xFFFEF2F2),
+                            color: AppColors.critical,
+                            // red-50 소프트 (critical 토큰 기반) — 토큰 팔레트에 red50 없음
+                            bg: AppColors.critical.withValues(alpha: 0.08),
                             icon: Icons.warning_amber_rounded,
                             rows: critical,
                           ),
                           _Section(
-                            title: '검사 완료 · 작성 가능',
-                            color: const Color(0xFF059669),
-                            bg: const Color(0xFFECFDF5),
+                            title: '소견서 생성 완료 · 확정 대기',
+                            color: AppColors.blue700,
+                            bg: AppColors.blue50,
                             icon: Icons.check_circle_outline,
                             rows: ready,
+                            showElapsed: true,
+                          ),
+                          _Section(
+                            title: '미서명 소견서',
+                            color: AppColors.purple700,
+                            bg: AppColors.purple50,
+                            icon: Icons.description_outlined,
+                            rows: unsigned,
                             showElapsed: true,
                           ),
                         ],
@@ -173,17 +171,30 @@ class _Section extends StatelessWidget {
               const SizedBox(width: 6),
               Text(title,
                   style: TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+                      fontSize: 14, fontWeight: FontWeight.bold, color: color)),
               const Spacer(),
-              Text('${rows.length}',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: color)),
+              Container(
+                constraints: const BoxConstraints(minWidth: 20),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border.all(color: color.withValues(alpha: 0.35)),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text('${rows.length}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                        fontFeatures: const [FontFeature.tabularFigures()])),
+              ),
             ],
           ),
         ),
-        for (final r in rows) _Row(report: r, showElapsed: showElapsed),
+        for (final r in rows)
+          _Row(report: r, showElapsed: showElapsed, accent: color),
       ],
     );
   }
@@ -192,7 +203,9 @@ class _Section extends StatelessWidget {
 class _Row extends StatelessWidget {
   final ReportData report;
   final bool showElapsed;
-  const _Row({required this.report, required this.showElapsed});
+  final Color accent; // 섹션 색 — 경과 강조에 빨강 대신 사용
+  const _Row(
+      {required this.report, required this.showElapsed, required this.accent});
 
   String _fmt(DateTime? d) {
     if (d == null) return '';
@@ -213,11 +226,12 @@ class _Row extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: overdue ? const Color(0x1ADC2626) : null, // red-600 10%
+          // 경과 강조 — 섹션 색(파랑/보라/빨강) 연한 톤
+          color: overdue ? accent.withValues(alpha: 0.08) : null,
           border: Border(
             bottom: BorderSide(
                 color: overdue
-                    ? const Color(0xFFFCA5A5) // red-300
+                    ? accent.withValues(alpha: 0.30)
                     : AppColors.slate100),
           ),
         ),
@@ -236,12 +250,10 @@ class _Row extends StatelessWidget {
                             Flexible(
                               child: Text(
                                 report.patientName ?? report.subjectId ?? '환자',
-                                style: TextStyle(
+                                style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
-                                    color: overdue
-                                        ? AppColors.critical
-                                        : AppColors.slate900),
+                                    color: AppColors.slate900),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
@@ -250,7 +262,10 @@ class _Row extends StatelessWidget {
                               Text('#${report.subjectId}',
                                   style: const TextStyle(
                                       fontSize: 11,
-                                      color: AppColors.slate400)),
+                                      color: AppColors.slate400,
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures()
+                                      ])),
                             ],
                           ],
                         ),
@@ -262,21 +277,23 @@ class _Row extends StatelessWidget {
                               horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: overdue
-                                ? const Color(0xFFFEE2E2) // red-100
+                                ? accent.withValues(alpha: 0.12)
                                 : AppColors.slate100,
                             border: overdue
-                                ? Border.all(color: const Color(0xFFFCA5A5))
+                                ? Border.all(
+                                    color: accent.withValues(alpha: 0.35))
                                 : null,
-                            borderRadius: BorderRadius.circular(3),
+                            borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             elapsed == 0 ? '방금' : '$elapsed분 경과',
                             style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
-                                color: overdue
-                                    ? const Color(0xFFB91C1C) // red-700
-                                    : AppColors.slate600),
+                                color: overdue ? accent : AppColors.slate600,
+                                fontFeatures: const [
+                                  FontFeature.tabularFigures()
+                                ]),
                           ),
                         ),
                       ],
@@ -289,11 +306,8 @@ class _Row extends StatelessWidget {
                       report.chiefComplaint!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: overdue
-                              ? const Color(0xFFDC2626)
-                              : AppColors.slate500),
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.slate600),
                     ),
                   ],
                 ],

@@ -51,6 +51,9 @@ dependencies:
   # 로그인 화면 hero 영상 — assets/videos/hero-video.mp4 재생
   video_player: ^2.9.2
 
+  # 운영 모니터링 대시보드 차트 (웹 recharts 대응)
+  fl_chart: ^0.69.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -75,6 +78,8 @@ flutter:
 
   assets:
     - assets/videos/hero-video.mp4
+    - assets/images/AI.jpg
+    - assets/images/EMON.jpg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

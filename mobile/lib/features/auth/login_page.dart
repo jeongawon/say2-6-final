@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:video_player/video_player.dart';
 
-import '../../shared/theme/app_theme.dart';
-
-/// 모바일 로그인 — 풀스크린 hero 비디오 배경 + 폼 오버레이.
-/// 사번(DR001 / NR001) + 비밀번호 입력.
+/// 모바일 로그인 — 웹(EMON Med®) 디자인과 통일.
+/// 상단: 브레인 이미지 + EMON 로고 히어로 / 하단: 흰 폼(아이디·비밀번호).
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
@@ -20,46 +17,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _loading = false;
   String? _error;
 
-  VideoPlayerController? _videoCtrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _initVideo();
-  }
-
-  Future<void> _initVideo() async {
-    try {
-      _videoCtrl = VideoPlayerController.asset('assets/videos/hero-video.mp4');
-      await _videoCtrl!.initialize();
-      _videoCtrl!
-        ..setLooping(true)
-        ..setVolume(0)
-        ..play();
-      if (mounted) setState(() {});
-    } catch (_) {
-      /* fallback: 그라디언트 배경 */
-    }
-  }
-
   @override
   void dispose() {
     _empIdCtrl.dispose();
     _pwCtrl.dispose();
-    _videoCtrl?.dispose();
     super.dispose();
   }
 
   Future<void> _handleLogin() async {
     if (_empIdCtrl.text.trim().isEmpty || _pwCtrl.text.isEmpty) {
-      setState(() => _error = '사번과 비밀번호를 입력하세요.');
+      setState(() => _error = '아이디와 비밀번호를 입력하세요.');
       return;
     }
     setState(() {
       _error = null;
       _loading = true;
     });
-    // 데모: 즉시 통과 — Cognito 연동은 Phase 2에서 추가
     await Future<void>.delayed(const Duration(milliseconds: 400));
     if (!mounted) return;
     setState(() => _loading = false);
@@ -68,266 +41,203 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    final videoReady = _videoCtrl?.value.isInitialized ?? false;
     return Scaffold(
-      backgroundColor: const Color(0xFF1E1B4B), // 비디오 로드 전 깊은 보라
+      backgroundColor: Colors.white,
       resizeToAvoidBottomInset: true,
-      body: Stack(
-        children: [
-          // ─── 1) 풀스크린 비디오 배경 ───
-          Positioned.fill(
-            child: videoReady
-                ? FittedBox(
-                    fit: BoxFit.cover,
-                    child: SizedBox(
-                      width: _videoCtrl!.value.size.width,
-                      height: _videoCtrl!.value.size.height,
-                      child: VideoPlayer(_videoCtrl!),
-                    ),
-                  )
-                : Container(
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFF4338CA), Color(0xFF6D28D9)],
-                      ),
-                    ),
-                  ),
-          ),
+      body: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // ─── 히어로: 브레인 + EMON 아이콘 ───
+            const _Hero(),
 
-          // ─── 2) 어두운 오버레이 — 상단 약간 + 하단 진하게 ───
-          Positioned.fill(
-            child: IgnorePointer(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x331E1B4B), // 상단 — 살짝
-                      Color(0x661E1B4B), // 중간
-                      Color(0xCC0F0D30), // 하단 — 진하게 (폼 가독성)
-                    ],
-                    stops: [0, 0.45, 1.0],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ─── 3) 폼 오버레이 — 하단 절반 영역 ───
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+            // ─── 폼 (흰 배경) ───
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Spacer(flex: 2),
-
-                  // 헤더
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '로그인',
-                          style: TextStyle(
-                            fontSize: 32,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                            letterSpacing: -0.5,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '응급실 의료진 전용 진단 보조 시스템',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.white.withValues(alpha: 0.75),
-                          ),
-                        ),
-                      ],
+                  const Text(
+                    'Login',
+                    style: TextStyle(
+                      fontSize: 34,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF0F172A),
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 24),
 
-                  // 사번
-                  _GlassField(
-                    label: '사번',
-                    controller: _empIdCtrl,
-                    enabled: !_loading,
-                    hintText: 'DR001',
-                  ),
-                  const SizedBox(height: 14),
+                  _label('아이디'),
+                  const SizedBox(height: 8),
+                  _field(_empIdCtrl, hint: 'DR001', enabled: !_loading),
+                  const SizedBox(height: 16),
 
-                  // 비밀번호
-                  _GlassField(
-                    label: '비밀번호',
-                    controller: _pwCtrl,
-                    enabled: !_loading,
-                    obscure: true,
-                    onSubmitted: (_) => _handleLogin(),
-                  ),
+                  _label('비밀번호'),
+                  const SizedBox(height: 8),
+                  _field(_pwCtrl,
+                      obscure: true,
+                      enabled: !_loading,
+                      onSubmitted: (_) => _handleLogin()),
 
                   if (_error != null) ...[
                     const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        _error!,
+                    Text(_error!,
                         style: const TextStyle(
-                            fontSize: 13, color: Color(0xFFFCA5A5)),
-                      ),
-                    ),
+                            color: Color(0xFFDC2626), fontSize: 13)),
                   ],
 
-                  const SizedBox(height: 22),
+                  const SizedBox(height: 26),
 
-                  // 로그인 버튼
                   SizedBox(
-                    width: double.infinity,
-                    height: 52,
+                    height: 54,
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF6366F1), // indigo-500
+                        backgroundColor: const Color(0xFF4F46E5), // indigo-600
                         foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.slate500,
+                        disabledBackgroundColor: const Color(0xFF94A3B8),
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                            borderRadius: BorderRadius.circular(10)),
                       ),
                       onPressed: _loading ? null : _handleLogin,
                       child: Text(
                         _loading ? '로그인 중…' : '로그인',
                         style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                            fontSize: 17, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 18),
+                  const SizedBox(height: 16),
 
-                  // 찾기 링크
                   Row(
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      _MutedLink(text: '사번 찾기', onTap: () {}),
+                      _link('아이디 찾기'),
                       const SizedBox(width: 10),
-                      const Text('|',
-                          style: TextStyle(
-                              color: Color(0x66FFFFFF), fontSize: 13)),
+                      const Text('|', style: TextStyle(color: Color(0xFFCBD5E1))),
                       const SizedBox(width: 10),
-                      _MutedLink(text: '비밀번호 찾기', onTap: () {}),
+                      _link('비밀번호 찾기'),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-                  const SizedBox(height: 32),
+  Widget _label(String t) => Text(
+        t,
+        style: const TextStyle(
+            fontSize: 15, fontWeight: FontWeight.bold, color: Color(0xFF1E293B)),
+      );
+
+  Widget _field(
+    TextEditingController c, {
+    String? hint,
+    bool obscure = false,
+    bool enabled = true,
+    ValueChanged<String>? onSubmitted,
+  }) {
+    OutlineInputBorder border(Color c, [double w = 1]) => OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: c, width: w),
+        );
+    return TextField(
+      controller: c,
+      enabled: enabled,
+      obscureText: obscure,
+      autocorrect: false,
+      style: const TextStyle(color: Color(0xFF0F172A), fontSize: 16),
+      cursorColor: const Color(0xFF6366F1),
+      textInputAction: obscure ? TextInputAction.done : TextInputAction.next,
+      onSubmitted: onSubmitted,
+      decoration: InputDecoration(
+        hintText: hint,
+        hintStyle: const TextStyle(color: Color(0xFFCBD5E1), fontSize: 15),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        enabledBorder: border(const Color(0xFFE2E8F0)),
+        disabledBorder: border(const Color(0xFFE2E8F0)),
+        focusedBorder: border(const Color(0xFF6366F1), 1.6),
+      ),
+    );
+  }
+
+  Widget _link(String t) => GestureDetector(
+        onTap: () {},
+        child: Text(t,
+            style: const TextStyle(fontSize: 14, color: Color(0xFF64748B))),
+      );
+}
+
+/* ── 히어로: 브레인 배경 + EMON 아이콘 (웹 우측 패널과 동일 컨셉) ── */
+class _Hero extends StatelessWidget {
+  const _Hero();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 300,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // 그라데이션 베이스 (blue → indigo → violet)
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFF1D4ED8), Color(0xFF4338CA), Color(0xFF6D28D9)],
+              ),
+            ),
+          ),
+          // 브레인 이미지
+          Opacity(
+            opacity: 0.85,
+            child: Image.asset('assets/images/AI.jpg', fit: BoxFit.cover),
+          ),
+          // 인디고 틴트 + 하단 페이드
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x553730A3), Color(0x00000000), Color(0xFFFFFFFF)],
+                stops: [0, 0.55, 1.0],
+              ),
+            ),
+          ),
+          // 중앙: 'AI' 박스 마스킹 + EMON 아이콘
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(bottom: 24),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 브레인 속 'AI' 박스 + 로고 곤색 배경 가리기
+                  Container(
+                    width: 190,
+                    height: 130,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [Color(0xFF16306A), Color(0x0016306A)],
+                      ),
+                    ),
+                  ),
+                  Image.asset('assets/images/EMON.jpg',
+                      width: 150, fit: BoxFit.contain),
                 ],
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-/* ── 영상 위에 띄우는 반투명 입력 필드 ──
-   배경: 검정 30% + 흰 테두리 / 텍스트: 흰색
-*/
-class _GlassField extends StatelessWidget {
-  final String label;
-  final TextEditingController controller;
-  final bool enabled;
-  final bool obscure;
-  final String? hintText;
-  final ValueChanged<String>? onSubmitted;
-
-  const _GlassField({
-    required this.label,
-    required this.controller,
-    required this.enabled,
-    this.obscure = false,
-    this.hintText,
-    this.onSubmitted,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.white.withValues(alpha: 0.85),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 7),
-        TextField(
-          controller: controller,
-          enabled: enabled,
-          obscureText: obscure,
-          autocorrect: false,
-          style: const TextStyle(color: Colors.white, fontSize: 15),
-          textInputAction: obscure ? TextInputAction.done : TextInputAction.next,
-          onSubmitted: onSubmitted,
-          cursorColor: Colors.white,
-          decoration: InputDecoration(
-            isDense: true,
-            hintText: hintText,
-            hintStyle: TextStyle(
-              color: Colors.white.withValues(alpha: 0.35),
-              fontSize: 14,
-            ),
-            filled: true,
-            fillColor: Colors.white.withValues(alpha: 0.08),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.25), width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide:
-                  const BorderSide(color: Color(0xFF818CF8), width: 1.5),
-            ),
-            disabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide(
-                  color: Colors.white.withValues(alpha: 0.12), width: 1),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/* ── 영상 위에 흐릿한 텍스트 링크 ── */
-class _MutedLink extends StatelessWidget {
-  final String text;
-  final VoidCallback onTap;
-  const _MutedLink({required this.text, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
-        child: Text(
-          text,
-          style: TextStyle(
-            fontSize: 13,
-            color: Colors.white.withValues(alpha: 0.75),
-          ),
-        ),
       ),
     );
   }

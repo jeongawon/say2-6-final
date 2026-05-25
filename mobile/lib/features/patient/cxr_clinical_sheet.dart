@@ -48,9 +48,9 @@ class CxrClinicalSheet extends StatelessWidget {
     final leftCpAngle = m['left_cp_angle'] as num?;
     final rightCpAngle = m['right_cp_angle'] as num?;
 
-    // backend가 S3에서 받아 스트리밍 — 웹의 /assets/cxr/{id}와 동일 경로.
-    // API base는 dio config의 apiBaseUrl 재사용 (운영 빌드 시 --dart-define으로 override).
-    final imageUrl = subjectId != null ? '$apiBaseUrl/assets/cxr/$subjectId' : null;
+    // backend가 S3에서 받아 스트리밍 — /mimic/cxr/{id} (CloudFront가 /mimic/* → ALB 라우팅).
+    // (/assets/* 는 CloudFront가 S3로 보내 이미지가 안 떠서 /mimic/cxr 로 변경 — 웹과 동일.)
+    final imageUrl = subjectId != null ? '$apiBaseUrl/mimic/cxr/$subjectId' : null;
 
     return Container(
       color: Colors.white,
@@ -246,13 +246,7 @@ Future<void> showCxrClinicalSheet(
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppColors.slate300),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(20),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(4),
             ),
             child: CxrClinicalSheet(
               patientName: patientName,
@@ -386,9 +380,9 @@ class _SectionLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Text(text,
       style: const TextStyle(
-          fontSize: 11,
+          fontSize: 14,
           fontWeight: FontWeight.bold,
-          color: AppColors.slate600));
+          color: AppColors.slate900));
 }
 
 class _MeasureRow extends StatelessWidget {

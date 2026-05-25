@@ -113,6 +113,58 @@ class ModalSummary {
     return const [];
   }
 
+  // CXR 한국어 소견 — chest-svc 영어 출력을 구조화 findings로 한국어 재구성 (웹과 동일).
+  String get cxrKoreanSummary {
+    final s = summary ?? '';
+    if (RegExp(r'[가-힣]').hasMatch(s)) return s; // 이미 한국어면 그대로
+    const nameKo = {
+      'Cardiomegaly': '심비대', 'Pleural_Effusion': '흉막삼출', 'Edema': '폐부종',
+      'Pneumothorax': '기흉', 'Atelectasis': '무기폐',
+      'Enlarged_Cardiomediastinum': '종격동 비대', 'Consolidation': '폐 경화',
+      'Pneumonia': '폐렴', 'Lung_Opacity': '폐 음영', 'Fracture': '골절',
+      'Support_Devices': '의료기기 삽입', 'No_Finding': '특이 소견 없음',
+    };
+    const sevKo = {'mild': '경도', 'moderate': '중등도', 'severe': '중증'};
+    const diffKo = {'Atelectasis': '폐렴 감별 필요', 'Pleural_Effusion': '혈흉 감별 필요'};
+    const recKo = {
+      'Echocardiography recommended': '심초음파 권장',
+      'Clinical correlation with BNP recommended': 'BNP 등 임상 연관성 확인 권장',
+      'Clinical correlation recommended': '임상 연관성 확인 권장',
+    };
+    final ctr = (cxrMeasurements?['ctr'] as num?)?.toDouble();
+    final lines = <String>[];
+    var n = 1;
+    for (final f in findings) {
+      if (f['name'] == 'No_Finding' || f['detected'] != true) continue;
+      final ko = nameKo[f['name']] ?? '${f['name']}';
+      final sev = sevKo[f['severity']] ?? '';
+      final loc = f['location'] == 'right'
+          ? '우측 '
+          : f['location'] == 'left'
+              ? '좌측 '
+              : '';
+      var line = '$n. ${sev.isNotEmpty ? '$sev ' : ''}$loc$ko';
+      if (f['name'] == 'Cardiomegaly' && ctr != null) {
+        line += ' (CTR ${ctr.toStringAsFixed(2)})';
+      }
+      final diff = diffKo[f['name']];
+      if (diff != null) line += ' ($diff)';
+      final rec = recKo[f['recommendation']];
+      if (rec != null) line += ' — $rec';
+      lines.add(line);
+      n++;
+    }
+    for (final f in findings) {
+      if (f['detected'] == true || f['name'] == 'No_Finding') continue;
+      if (f['name'] == 'Pneumothorax' ||
+          f['name'] == 'Enlarged_Cardiomediastinum') {
+        lines.add('$n. ${nameKo[f['name']] ?? '${f['name']}'} 없음');
+        n++;
+      }
+    }
+    return lines.isEmpty ? s : lines.join('\n');
+  }
+
   // LAB 전용
   List<Map<String, dynamic>> get labSummary {
     final l = raw?['lab_summary'];

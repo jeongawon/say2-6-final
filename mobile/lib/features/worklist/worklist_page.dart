@@ -7,6 +7,7 @@ import '../../core/api/reports_api.dart';
 import '../../core/models/encounter.dart';
 import '../../features/notifications/notifications_panel.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/emon_top_bar.dart';
 import '../../shared/widgets/ktas_badge.dart';
 
 /// frontend/src/pages/v2/WorklistPage.tsx의 환자 행 디자인을 모바일 카드로 적응.
@@ -21,33 +22,7 @@ class WorklistPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.slate50,
-      appBar: AppBar(
-        title: Row(
-          children: [
-            const Text('환자 목록',
-                style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.slate900)),
-            const SizedBox(width: 8),
-            async.maybeWhen(
-              data: (l) => Text(
-                'Total ${l.length}명',
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.slate400),
-              ),
-              orElse: () => const SizedBox.shrink(),
-            ),
-          ],
-        ),
-        actions: [
-          _NotificationBell(),
-          IconButton(
-            icon: const Icon(Icons.refresh, color: AppColors.slate600),
-            onPressed: () => ref.invalidate(encountersListProvider),
-          ),
-        ],
-      ),
+      appBar: const EmonTopBar(current: 'worklist'),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorView(
@@ -308,10 +283,10 @@ class _ExamStatusBadge extends StatelessWidget {
         AppColors.purple700,
       ),
       'preliminary' => (
-        '✓ 검사 완료',
-        AppColors.emerald50,
-        AppColors.emerald300,
-        AppColors.emerald700,
+        '소견 생성 완료 · 확정 대기',
+        AppColors.blue50,
+        AppColors.blue300,
+        AppColors.blue700,
       ),
       _ => (
         '분석 중',

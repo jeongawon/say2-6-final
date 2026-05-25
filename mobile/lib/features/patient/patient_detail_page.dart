@@ -5,6 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../core/api/patient_api.dart';
 import '../../core/models/ai_rec.dart';
 import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/emon_top_bar.dart';
+import '../../shared/widgets/live_badge.dart';
+import '../../shared/widgets/top_notification_banner.dart';
 import 'cxr_clinical_sheet.dart';
 import 'ecg_clinical_sheet.dart';
 import 'lab_clinical_sheet.dart';
@@ -22,21 +25,7 @@ class PatientDetailPage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: AppColors.slate50,
-      appBar: AppBar(
-        leading: IconButton(
-            icon: const Icon(Icons.arrow_back, color: AppColors.slate700),
-            onPressed: () => context.go('/worklist')),
-        title: const Text('AI 분석',
-            style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: AppColors.slate900)),
-        actions: [
-          IconButton(
-              icon: const Icon(Icons.refresh, color: AppColors.slate600),
-              onPressed: () => ref.invalidate(patientDetailProvider)),
-        ],
-      ),
+      appBar: EmonTopBar(current: 'analysis', patientId: patientId),
       body: async.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => _ErrorView(
@@ -78,26 +67,11 @@ class PatientDetailPage extends ConsumerWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(12),
                     children: [
-                      const _PanelHeader(),
+                      _PanelHeader(patientId: patientId),
                       const SizedBox(height: 10),
                       if (data.recommendations.isEmpty)
                         const _LoadingCard()
                       else ...[
-                        _ProgressSummary(
-                          totalAi: aiRecs.length,
-                          totalManual: manualRecs.length,
-                          done: doneCount,
-                          draft: allDraft.length,
-                          onApproveAll: allDraft.isEmpty
-                              ? null
-                              : () async {
-                                  for (final r in allDraft) {
-                                    await approveOrder(
-                                        ref, r.srId, patientId);
-                                  }
-                                },
-                        ),
-                        const SizedBox(height: 10),
                         // AI 1·2·3차 권고
                         for (final r in ranks) ...[
                           _RankGroup(
@@ -130,19 +104,14 @@ class PatientDetailPage extends ConsumerWidget {
                         recommendations: data.recommendations,
                         modalResults: data.modalResults,
                       ),
-                      const SizedBox(height: 12),
-                      _ModalResultsSection(
-                        modalResults: data.modalResults,
-                        patient: data.patient,
-                      ),
                     ],
                   ),
                 ),
               ),
               _PanelFooter(
-                disabled: !allDone,
+                disabled: doneCount == 0,
                 onOpenReport: () =>
-                    context.go('/patient/$patientId/report'),
+                    context.go('/patient/$patientId/results'),
               ),
             ],
           );
@@ -155,11 +124,18 @@ class PatientDetailPage extends ConsumerWidget {
 // ────────────────────────────────────────────────────────────
 // 패널 헤더 — 웹 PanelHeader: brand-50 bg + sparkles 아이콘
 // ────────────────────────────────────────────────────────────
-class _PanelHeader extends StatelessWidget {
-  const _PanelHeader();
+class _PanelHeader extends ConsumerWidget {
+  final String patientId;
+  const _PanelHeader({required this.patientId});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 백엔드 연결 유무 → LIVE / 연결 중 / 오프라인 (웹 wsStatus 대응)
+    final status = ref.watch(patientDetailProvider(patientId)).when(
+          data: (_) => LiveStatus.live,
+          loading: () => LiveStatus.connecting,
+          error: (_, _) => LiveStatus.offline,
+        );
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
@@ -172,27 +148,29 @@ class _PanelHeader extends StatelessWidget {
           const Icon(Icons.auto_awesome,
               color: AppColors.brand600, size: 20),
           const SizedBox(width: 8),
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'AI 검사 권고',
                 style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                     color: AppColors.slate900),
               ),
-              const SizedBox(height: 2),
+              SizedBox(height: 2),
               Text(
                 'AI RECOMMENDATIONS · 1·2·3차',
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: 10,
                   color: AppColors.slate400,
                   letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
+          const Spacer(),
+          LiveBadge(status: status),
         ],
       ),
     );
@@ -217,17 +195,20 @@ class _ProgressSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.slate50,
-        border: Border.all(color: AppColors.slate200),
+        color: Colors.white,
+        border: Border.all(color: AppColors.slate300),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(
         children: [
           Expanded(
             child: DefaultTextStyle(
-              style: const TextStyle(fontSize: 11, color: AppColors.slate600),
+              style: const TextStyle(
+                  fontSize: 12,
+                  color: AppColors.slate600,
+                  fontFeatures: [FontFeature.tabularFigures()]),
               child: Wrap(
                 spacing: 4,
                 children: [
@@ -275,7 +256,7 @@ class _ProgressSummary extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 10),
                   minimumSize: Size.zero,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4)),
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: onApproveAll,
                 child: Text(
@@ -324,7 +305,7 @@ class _RankGroup extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: const BoxDecoration(
               border: Border(
-                  bottom: BorderSide(color: Color(0x14000000))),
+                  bottom: BorderSide(color: AppColors.slate200)),
             ),
             child: Row(
               children: [
@@ -333,7 +314,7 @@ class _RankGroup extends StatelessWidget {
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                      horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: meta.badgeBg,
                     borderRadius: BorderRadius.circular(2),
@@ -353,7 +334,8 @@ class _RankGroup extends StatelessWidget {
                   style: const TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
-                      color: AppColors.slate500),
+                      color: AppColors.slate500,
+                      fontFeatures: [FontFeature.tabularFigures()]),
                 ),
               ],
             ),
@@ -404,6 +386,16 @@ class _DirectOrderPanel extends ConsumerStatefulWidget {
 class _DirectOrderPanelState extends ConsumerState<_DirectOrderPanel> {
   final Set<String> _requesting = {}; // 5초간 로딩 표시용
   final Set<String> _requested = {};  // 클릭 즉시 영구 마킹
+  // 모달 추론 서버 ON/OFF (목업 — 배포 후 /ops/health 연동). 칩 탭으로 토글.
+  final Map<String, bool> _servers = {'ECG': true, 'CXR': true, 'LAB': true};
+  final Set<String> _manualDone = {}; // 추론 서버 OFF 시 수기 입력 완료
+  final _memoCtrl = TextEditingController(); // 의사 메모 (자동 저장 — 데모)
+
+  @override
+  void dispose() {
+    _memoCtrl.dispose();
+    super.dispose();
+  }
 
   Future<void> _request(String modality) async {
     setState(() {
@@ -418,18 +410,13 @@ class _DirectOrderPanelState extends ConsumerState<_DirectOrderPanel> {
         modality: modality,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('$modality 직접 오더 — 분석 시작'),
-          backgroundColor: AppColors.slate800,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      TopNotificationBanner.show(context,
+          title: '$modality 직접 오더 — 분석 시작',
+          duration: const Duration(seconds: 2));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('오더 실패: $e'), backgroundColor: AppColors.critical),
-      );
+      TopNotificationBanner.show(context,
+          title: '오더 실패', body: '$e', critical: true);
       setState(() => _requested.remove(modality));
     } finally {
       if (mounted) {
@@ -440,18 +427,70 @@ class _DirectOrderPanelState extends ConsumerState<_DirectOrderPanel> {
     }
   }
 
-  // 해당 modality가 이미 AI 권고 또는 의사 오더에 들어있는지
-  bool _isAlreadyOrdered(String modality) {
-    if (_requested.contains(modality)) return true;
-    return widget.recommendations.any((r) => r.modality == modality);
+  // 해당 modality의 기존 AI 권고/오더 (있으면 그 상태를 표시)
+  AIRec? _recFor(String modality) {
+    for (final r in widget.recommendations) {
+      if (r.modality == modality) return r;
+    }
+    return null;
+  }
+
+  // 추론 서버 OFF 시 — 의사 수기 입력 (웹 ManualInputModal 대응, 간소화).
+  Future<void> _openManualInput(String modality) async {
+    final ctrl = TextEditingController();
+    final saved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$modality 수기 입력',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('추론 서버 OFF — 의사가 판독 결과를 직접 기록합니다.',
+                style: TextStyle(fontSize: 12, color: AppColors.slate500)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              maxLines: 4,
+              decoration: InputDecoration(
+                hintText: '판독 소견 입력…',
+                border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('취소')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.brand600,
+                foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (saved == true && mounted) {
+      setState(() => _manualDone.add(modality));
+      TopNotificationBanner.show(context,
+          title: '$modality 수기 입력 완료 (데모)',
+          duration: const Duration(seconds: 2));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     const all = ['ECG', 'CXR', 'LAB'];
+    final anyDown = all.any((m) => !(_servers[m] ?? true));
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.slate50,
+        color: Colors.white,
         border: Border.all(color: AppColors.slate300),
         borderRadius: BorderRadius.circular(4),
       ),
@@ -463,28 +502,104 @@ class _DirectOrderPanelState extends ConsumerState<_DirectOrderPanel> {
             decoration: const BoxDecoration(
               border: Border(bottom: BorderSide(color: AppColors.slate200)),
             ),
-            child: const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text('검사 직접 오더',
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: AppColors.slate700,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Icon(Icons.medical_services_outlined,
+                      size: 15, color: Colors.white),
+                ),
+                const SizedBox(width: 8),
+                const Text('의사 직접 지시',
                     style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.slate800)),
-                SizedBox(height: 2),
-                Text('AI 권고 외 검사를 의사가 직접 지시',
-                    style: TextStyle(fontSize: 10, color: AppColors.slate500)),
+                        color: AppColors.slate900)),
               ],
             ),
           ),
           Padding(
             padding: const EdgeInsets.all(10),
-            child: Row(
+            child: Column(
               children: [
-                for (final m in all) ...[
-                  if (m != all.first) const SizedBox(width: 8),
-                  Expanded(child: _buildBtn(m)),
+                if (anyDown) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.amber50,
+                      border: Border.all(color: AppColors.amber300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.wifi_off,
+                            size: 14, color: AppColors.amber700),
+                        SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            '추론 서버가 꺼진 검사는 의사가 직접 입력할 수 있습니다.',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.amber700),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                 ],
+                for (int i = 0; i < all.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 8),
+                  _buildRow(all[i]),
+                ],
+                const SizedBox(height: 14),
+                // 의사 메모 — 웹 ManualOrderPanel 메모칸과 동일
+                Row(
+                  children: [
+                    const Icon(Icons.edit_outlined,
+                        size: 15, color: AppColors.slate500),
+                    const SizedBox(width: 5),
+                    const Text('의사 메모',
+                        style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.slate800)),
+                    const Spacer(),
+                    const Text('자동 저장',
+                        style:
+                            TextStyle(fontSize: 11, color: AppColors.slate400)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: _memoCtrl,
+                  maxLines: 4,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    hintText: '처치 경과 · 인계사항 · 환자 특이사항을 입력하세요',
+                    hintStyle: const TextStyle(
+                        fontSize: 13, color: AppColors.slate400),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.all(10),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide:
+                          const BorderSide(color: AppColors.slate200),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(6),
+                      borderSide:
+                          const BorderSide(color: AppColors.slate200),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -493,73 +608,243 @@ class _DirectOrderPanelState extends ConsumerState<_DirectOrderPanel> {
     );
   }
 
-  Widget _buildBtn(String modality) {
-    final already = _isAlreadyOrdered(modality);
+  Widget _buildRow(String modality) {
+    final rec = _recFor(modality);
+    final serverUp = _servers[modality] ?? true;
+    final manualDone = _manualDone.contains(modality);
     final loading = _requesting.contains(modality);
+    final requested = _requested.contains(modality);
+    final done = rec?.isDone ?? false;
+    final running = rec?.isRunning ?? false;
+    final requesting = loading || (requested && rec == null);
+    final ordered = rec != null || requested;
 
     final IconData icon = switch (modality) {
       'ECG' => Icons.monitor_heart_outlined,
       'CXR' => Icons.image_outlined,
       _ => Icons.science_outlined,
     };
-
     final String label = switch (modality) {
-      'ECG' => 'ECG',
-      'CXR' => 'CXR',
-      _ => 'LAB',
+      'ECG' => '심전도 12-Lead',
+      'CXR' => '흉부 X-ray',
+      _ => '혈액 검사',
     };
 
-    final Color bg;
-    final Color fg;
-    final Color border;
-    final String hint;
-    if (already) {
-      bg = AppColors.slate100;
-      fg = AppColors.slate400;
-      border = AppColors.slate200;
-      hint = '오더됨';
-    } else if (loading) {
-      bg = AppColors.amber50;
-      fg = AppColors.amber700;
-      border = AppColors.amber300;
-      hint = '요청 중';
-    } else {
-      bg = Colors.white;
-      fg = AppColors.slate700;
-      border = AppColors.slate400;
-      hint = '직접 오더';
-    }
+    final (cardBg, cardBorder) = manualDone
+        ? (AppColors.emerald50, AppColors.emerald300)
+        : !serverUp
+            ? (AppColors.critical.withAlpha(20), AppColors.critical.withAlpha(90))
+            : (Colors.white, AppColors.slate200);
 
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: cardBg,
+        border: Border.all(color: cardBorder),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      // 직렬(인라인): 아이콘 + 이름·라벨 + 활성/비활성 칩 + 검사 지시 버튼
+      child: Row(
+        children: [
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: AppColors.slate100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Icon(icon, size: 14, color: AppColors.slate600),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
+                Text(modality,
+                    style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.slate900)),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(label,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.slate400)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          _ServerChip(
+            up: serverUp,
+            onTap: () => setState(() => _servers[modality] = !serverUp),
+          ),
+          const SizedBox(width: 6),
+          _action(
+            modality,
+            serverUp: serverUp,
+            manualDone: manualDone,
+            done: done,
+            running: running,
+            requesting: requesting,
+            ordered: ordered,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _action(
+    String modality, {
+    required bool serverUp,
+    required bool manualDone,
+    required bool done,
+    required bool running,
+    required bool requesting,
+    required bool ordered,
+  }) {
+    Widget chip(String text, Color bg, Color fg, {Widget? leading}) => Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+              color: bg, borderRadius: BorderRadius.circular(4)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (leading != null) ...[leading, const SizedBox(width: 4)],
+              Text(text,
+                  style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.bold, color: fg)),
+            ],
+          ),
+        );
+
+    if (manualDone) {
+      return _ActionButton(
+        label: '수기 입력 완료 · 수정',
+        icon: Icons.check_circle,
+        bg: AppColors.emerald100,
+        fg: AppColors.emerald700,
+        onTap: () => _openManualInput(modality),
+      );
+    }
+    if (!serverUp) {
+      return _ActionButton(
+        label: '직접 입력',
+        icon: Icons.edit_outlined,
+        bg: AppColors.slate800,
+        fg: Colors.white,
+        onTap: () => _openManualInput(modality),
+      );
+    }
+    if (done) {
+      return chip('✓ 완료', AppColors.emerald100, AppColors.emerald700);
+    }
+    if (running || requesting) {
+      return chip(
+        running ? '분석 중' : '요청 중',
+        AppColors.amber100,
+        AppColors.amber700,
+        leading: const SizedBox(
+          width: 11,
+          height: 11,
+          child: CircularProgressIndicator(
+              strokeWidth: 2, color: AppColors.amber700),
+        ),
+      );
+    }
+    if (ordered) {
+      return chip('지시됨', AppColors.slate100, AppColors.slate400);
+    }
+    return _ActionButton(
+      label: '검사 지시',
+      icon: Icons.medical_services_outlined,
+      bg: Colors.white,
+      fg: AppColors.slate700,
+      border: AppColors.slate400,
+      onTap: () => _request(modality),
+    );
+  }
+}
+
+// 모달 추론 서버 ON/OFF 칩 — 웹 ManualOrderRow 의 서버 상태 버튼 대응. 탭하면 토글.
+class _ServerChip extends StatelessWidget {
+  final bool up;
+  final VoidCallback onTap;
+  const _ServerChip({required this.up, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final (bg, border, fg) = up
+        ? (AppColors.emerald50, AppColors.emerald300, AppColors.emerald700)
+        : (AppColors.slate100, AppColors.slate200, AppColors.slate500);
     return InkWell(
-      onTap: (already || loading) ? null : () => _request(modality),
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Tooltip(
+        message: '추론 서버 상태 (탭해서 ON/OFF 전환)',
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+          decoration: BoxDecoration(
+            color: bg,
+            border: Border.all(color: border),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(up ? Icons.wifi : Icons.wifi_off, size: 12, color: fg),
+              const SizedBox(width: 4),
+              Text(up ? '활성' : '비활성',
+                  style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.bold, color: fg)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// 직접 오더 / 직접 입력 액션 버튼
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color bg;
+  final Color fg;
+  final Color? border;
+  final VoidCallback onTap;
+  const _ActionButton({
+    required this.label,
+    required this.icon,
+    required this.bg,
+    required this.fg,
+    required this.onTap,
+    this.border,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        // '활성' 칩과 동일 크기 — 높이 고정 제거, 패딩/아이콘/글씨 칩에 맞춤
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
           color: bg,
-          border: Border.all(color: border),
+          border: border != null ? Border.all(color: border!) : null,
+          borderRadius: BorderRadius.circular(8),
         ),
-        child: Column(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (loading)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: AppColors.amber700,
-                ),
-              )
-            else
-              Icon(icon, size: 16, color: fg),
-            const SizedBox(height: 4),
+            Icon(icon, size: 12, color: fg),
+            const SizedBox(width: 4),
             Text(label,
                 style: TextStyle(
-                    fontSize: 11, fontWeight: FontWeight.bold, color: fg)),
-            const SizedBox(height: 2),
-            Text(hint,
-                style: TextStyle(
-                    fontSize: 9, color: fg.withAlpha(180))),
+                    fontSize: 10, fontWeight: FontWeight.bold, color: fg)),
           ],
         ),
       ),
@@ -584,8 +869,8 @@ class _ManualOrderGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.slate50,
-        border: Border.all(color: AppColors.slate400),
+        color: Colors.white,
+        border: Border.all(color: AppColors.slate300),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
@@ -606,7 +891,7 @@ class _ManualOrderGroup extends StatelessWidget {
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 8, vertical: 2),
+                      horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                       color: AppColors.slate700,
                       borderRadius: BorderRadius.circular(2)),
@@ -623,7 +908,8 @@ class _ManualOrderGroup extends StatelessWidget {
                     style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: AppColors.slate500)),
+                        color: AppColors.slate500,
+                        fontFeatures: [FontFeature.tabularFigures()])),
               ],
             ),
           ),
@@ -678,73 +964,15 @@ class _RecCardState extends ConsumerState<_RecCard> {
     try {
       await approveOrder(ref, widget.rec.srId, widget.encounterId);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${widget.rec.modality} 검사 승인 — 분석 시작'),
-          backgroundColor: AppColors.emerald600,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+      TopNotificationBanner.show(context,
+          title: '${widget.rec.modality} 검사 승인 — 분석 시작',
+          duration: const Duration(seconds: 2));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content: Text('승인 실패: $e'),
-            backgroundColor: AppColors.critical),
-      );
+      TopNotificationBanner.show(context,
+          title: '승인 실패', body: '$e', critical: true);
     } finally {
       if (mounted) setState(() => _approving = false);
-    }
-  }
-
-  // "검사결과지" 버튼 핸들러 — modality별로 실 데이터 + 환자 인적사항 전달.
-  void _openResultSheet(BuildContext context, String modality) {
-    final modal = widget.modal;
-    final p = widget.patient;
-    final patientName = p.name ?? '환자';
-    final age = p.age ?? 0;
-    final sex = p.sex;
-    // 차트 헤더용 ID — subject_id 우선, 없으면 encounter UUID 앞 8자리
-    final patientId = p.subjectId ?? widget.encounterId.substring(0, 8);
-
-    if (modality == 'ECG') {
-      showEcgClinicalSheet(
-        context,
-        patientName: patientName,
-        age: age,
-        sex: sex,
-        patientId: patientId,
-        waveform: modal?.ecgWaveform,
-        ecgVitals: modal?.ecgVitals,
-        findings: modal?.findings ?? const [],
-      );
-    } else if (modality == 'CXR') {
-      showCxrClinicalSheet(
-        context,
-        patientName: patientName,
-        age: age,
-        sex: sex,
-        patientId: patientId,
-        subjectId: p.subjectId, // ⭐ 실 subject_id 전달 → /assets/cxr/{id} 이미지 로드
-        measurements: modal?.cxrMeasurements,
-        metadata: modal?.cxrMetadata,
-        findingsText: modal?.cxrFindingsText ?? const [],
-        impression: modal?.cxrImpression,
-        summary: modal?.summary,
-        riskLevel: modal?.riskLevel,
-      );
-    } else if (modality == 'LAB') {
-      showLabClinicalSheet(
-        context,
-        patientName: patientName,
-        age: age,
-        sex: sex,
-        patientId: patientId,
-        labSummary: modal?.labSummary ?? const [],
-        prognosis6h: modal?.prognosis6h,
-        summary: modal?.summary,
-        riskLevel: modal?.riskLevel,
-      );
     }
   }
 
@@ -788,7 +1016,7 @@ class _RecCardState extends ConsumerState<_RecCard> {
       decoration: BoxDecoration(
         color: cardBg,
         border: Border.all(color: cardBorder),
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(4),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -806,6 +1034,7 @@ class _RecCardState extends ConsumerState<_RecCard> {
                           : widget.manual
                               ? AppColors.slate200
                               : AppColors.slate100,
+                  borderRadius: BorderRadius.circular(4),
                 ),
                 child: Icon(
                   _icon(r.modality),
@@ -823,14 +1052,14 @@ class _RecCardState extends ConsumerState<_RecCard> {
                 children: [
                   Text(r.modality,
                       style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: 13,
                           fontWeight: FontWeight.bold,
-                          color: AppColors.slate800,
+                          color: AppColors.slate900,
                           height: 1)),
                   const SizedBox(height: 2),
                   Text(_label(r.modality),
                       style: const TextStyle(
-                          fontSize: 9, color: AppColors.slate400)),
+                          fontSize: 10, color: AppColors.slate400)),
                 ],
               ),
               const Spacer(),
@@ -842,7 +1071,7 @@ class _RecCardState extends ConsumerState<_RecCard> {
             Text(
               r.reason,
               style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: 11,
                   color: AppColors.slate500,
                   height: 1.4),
               maxLines: 2,
@@ -860,37 +1089,17 @@ class _RecCardState extends ConsumerState<_RecCard> {
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.zero,
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(2)),
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: _approve,
                 icon: const Icon(Icons.check_circle, size: 14),
-                label: const Text('승인하고 검사 실행',
+                label: const Text('검사 실행',
                     style: TextStyle(
                         fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
-          if (isDone) ...[
-            const SizedBox(height: 8),
-            SizedBox(
-              width: double.infinity,
-              height: 28,
-              child: OutlinedButton.icon(
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.vunoCyanDim,
-                  side: const BorderSide(color: AppColors.vunoCyanDim),
-                  padding: EdgeInsets.zero,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(2)),
-                ),
-                icon: const Icon(Icons.description_outlined, size: 12),
-                label: const Text('검사결과지',
-                    style: TextStyle(
-                        fontSize: 10, fontWeight: FontWeight.bold)),
-                onPressed: () => _openResultSheet(context, r.modality),
-              ),
-            ),
-          ],
+          // 검사결과지 보기는 'AI 결과' 페이지에서만 — 분석 페이지는 완료 상태만 표시.
         ],
       ),
     );
@@ -904,17 +1113,20 @@ class _RecStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (label, bg, fg, icon) = isDone
-        ? ('완료', AppColors.emerald100, AppColors.emerald700,
-            Icons.check_circle)
+    final (label, bg, border, fg, icon) = isDone
+        ? ('완료', AppColors.emerald50, AppColors.emerald300,
+            AppColors.emerald700, Icons.check_circle)
         : isRunning
-            ? ('분석 중', AppColors.amber100, AppColors.amber700,
-                Icons.refresh)
-            : ('승인 대기', AppColors.purple100, AppColors.purple700, null);
+            ? ('분석 중', AppColors.amber100, AppColors.amber400,
+                AppColors.amber700, Icons.refresh)
+            : ('승인 대기', AppColors.purple50, AppColors.purple300,
+                AppColors.purple700, null);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-          color: bg, borderRadius: BorderRadius.circular(2)),
+          color: bg,
+          border: Border.all(color: border),
+          borderRadius: BorderRadius.circular(2)),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -925,7 +1137,7 @@ class _RecStatusChip extends StatelessWidget {
           Text(label,
               style: TextStyle(
                   color: fg,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.bold)),
         ],
       ),
@@ -1057,12 +1269,12 @@ class _ModalResultsSection extends StatelessWidget {
             children: const [
               Icon(Icons.science_outlined,
                   size: 14, color: AppColors.slate600),
-              SizedBox(width: 4),
+              SizedBox(width: 6),
               Text('검사 결과',
                   style: TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.slate700)),
+                      color: AppColors.slate900)),
             ],
           ),
         ),
@@ -1071,7 +1283,7 @@ class _ModalResultsSection extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
                 color: Colors.white,
-                border: Border.all(color: AppColors.slate200),
+                border: Border.all(color: AppColors.slate300),
                 borderRadius: BorderRadius.circular(4)),
             child: const Text(
               '아직 완료된 검사 없음',
@@ -1084,7 +1296,7 @@ class _ModalResultsSection extends StatelessWidget {
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
                   color: Colors.white,
-                  border: Border.all(color: AppColors.slate200),
+                  border: Border.all(color: AppColors.slate300),
                   borderRadius: BorderRadius.circular(4)),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1096,14 +1308,17 @@ class _ModalResultsSection extends StatelessWidget {
                       children: [
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 3),
-                          color: m.isDone
-                              ? AppColors.emerald600
-                              : AppColors.slate500,
+                              horizontal: 8, vertical: 3),
+                          decoration: BoxDecoration(
+                            color: m.isDone
+                                ? AppColors.emerald600
+                                : AppColors.slate500,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
                           child: Text(m.modality,
                               style: const TextStyle(
                                   color: Colors.white,
-                                  fontSize: 10,
+                                  fontSize: 11,
                                   fontWeight: FontWeight.bold)),
                         ),
                         const SizedBox(width: 8),
@@ -1114,9 +1329,9 @@ class _ModalResultsSection extends StatelessWidget {
                           child: Text(
                             _label(m.modality),
                             style: const TextStyle(
-                                fontSize: 12,
+                                fontSize: 13,
                                 fontWeight: FontWeight.bold,
-                                color: AppColors.slate800),
+                                color: AppColors.slate900),
                           ),
                         ),
                         if (m.isDone)
@@ -1131,7 +1346,8 @@ class _ModalResultsSection extends StatelessWidget {
                               foregroundColor: AppColors.vunoCyanDim,
                               side: const BorderSide(
                                   color: AppColors.vunoCyanDim),
-                              shape: const RoundedRectangleBorder(),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                             icon: const Icon(Icons.description_outlined,
                                 size: 12),
@@ -1150,8 +1366,8 @@ class _ModalResultsSection extends StatelessWidget {
                     child: Text(
                       m.summary ?? '결과 없음',
                       style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.slate700,
+                          fontSize: 12,
+                          color: AppColors.slate600,
                           height: 1.4),
                     ),
                   ),
@@ -1190,14 +1406,14 @@ class _PanelFooter extends StatelessWidget {
                 foregroundColor:
                     disabled ? AppColors.slate400 : Colors.white,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4)),
+                    borderRadius: BorderRadius.circular(8)),
               ),
               onPressed: disabled ? null : onOpenReport,
-              icon: const Icon(Icons.description_outlined, size: 16),
+              icon: const Icon(Icons.chevron_right, size: 18),
               label: Text(
-                disabled ? '검사 진행 중 — 소견서 대기' : '종합 소견서 생성',
+                disabled ? '검사 진행 중 — 결과 대기' : 'AI 결과 보기',
                 style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.bold),
+                    fontSize: 15, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -1211,7 +1427,7 @@ class _PanelFooter extends StatelessWidget {
                   foregroundColor: AppColors.slate600,
                   side: const BorderSide(color: AppColors.slate300),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4)),
+                      borderRadius: BorderRadius.circular(8)),
                 ),
                 onPressed: onOpenReport,
                 child: const Text('의사 직권으로 소견서 생성 →',

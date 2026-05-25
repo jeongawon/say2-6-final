@@ -59,10 +59,12 @@ class AppColors {
   // Amber (분석 중)
   static const amber50 = Color(0xFFFFFBEB);
   static const amber100 = Color(0xFFFEF3C7);
+  static const amber200 = Color(0xFFFDE68A);
   static const amber300 = Color(0xFFFCD34D);
   static const amber400 = Color(0xFFFBBF24);
   static const amber600 = Color(0xFFD97706);
   static const amber700 = Color(0xFFB45309);
+  static const amber900 = Color(0xFF78350F);
 
   // Purple (AI rec status)
   static const purple50 = Color(0xFFFAF5FF);
@@ -70,6 +72,11 @@ class AppColors {
   static const purple300 = Color(0xFFD8B4FE);
   static const purple600 = Color(0xFF9333EA);
   static const purple700 = Color(0xFF7E22CE);
+
+  // Blue (소견서 생성 완료 · 확정 대기)
+  static const blue50 = Color(0xFFEFF6FF);
+  static const blue300 = Color(0xFF93C5FD);
+  static const blue700 = Color(0xFF1D4ED8);
 }
 
 /// KTAS 1~5 메타 (label, bg color) — types/triage.ts의 KTAS_META 그대로

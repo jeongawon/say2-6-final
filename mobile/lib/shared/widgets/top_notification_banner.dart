@@ -94,7 +94,8 @@ class _BannerState extends State<_Banner>
 
   @override
   Widget build(BuildContext context) {
-    final bg = widget.critical ? AppColors.critical : AppColors.brand600;
+    // 비-critical 토스트는 앰버(노랑) — 보라색 상단 네비게이션 위로 떠도 잘 보이게.
+    final bg = widget.critical ? AppColors.critical : AppColors.amber600;
     return Positioned(
       top: 0,
       left: 0,
@@ -109,10 +110,10 @@ class _BannerState extends State<_Banner>
               margin: const EdgeInsets.fromLTRB(8, 8, 8, 0),
               decoration: BoxDecoration(
                 color: bg,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.25),
+                    color: Colors.black.withValues(alpha: 0.20),
                     blurRadius: 12,
                     offset: const Offset(0, 4),
                   ),
@@ -120,10 +121,10 @@ class _BannerState extends State<_Banner>
               ),
               child: InkWell(
                 onTap: widget.onTap,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                      horizontal: 12, vertical: 12),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

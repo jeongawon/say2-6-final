@@ -596,13 +596,7 @@ Future<void> showEcgClinicalSheet(
             decoration: BoxDecoration(
               color: Colors.white,
               border: Border.all(color: AppColors.slate300),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(20),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(4),
             ),
             child: EcgClinicalSheet(
               patientName: patientName,

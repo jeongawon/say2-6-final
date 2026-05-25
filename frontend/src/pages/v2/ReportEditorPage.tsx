@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Activity, Image as ImageIcon, FlaskConical, Sparkles,
-  ClipboardCheck, PenLine, Copy, FileText, X, Printer, CheckCircle2,
+  ClipboardCheck, PenLine, Copy, FileText, X, Printer, CheckCircle2, ChevronDown, Paperclip, Loader2,
 } from "lucide-react";
 import { AppShell } from "../../components/v2/AppShell";
 import { PatientInfoSidebar } from "../../components/v2/PatientInfoSidebar";
@@ -13,16 +13,40 @@ import {
   findPatient,
   setLocalReportStatus, getLocalReportStatus,
   setLocalReportEdits, getLocalReportEdits,
-  setLocalReportSignature, getLocalReportSignature,
   type DemoPatient,
 } from "../../lib/v2/demoStore";
 import { useAuth, canEditReport } from "../../lib/v2/auth";
 import {
-  getModalResults, generateReport, getReportByEncounter, reviewReport, signReport,
+  getModalResults, generateReport, getReportByEncounter, signReport,
   type ModalResults, type ReportStatus,
 } from "../../lib/v2/api";
 import { CXRView, ECGView, LabView } from "../../components/modal-views/ModalViews";
+import { cxrKoreanSummary } from "../../lib/v2/cxrKorean";
 import { cn } from "../../lib/cn";
+
+/** RAG narrative를 소견서 본문 / 소견 근거 자료(RAG 참고 근거)로 분리·정리.
+ *  - 본문: 맨 위 [병원 로고/환자 식별 정보] 헤더 제거(→"상기 인은"부터), [RAG 참고 근거] 섹션 제거,
+ *          "진료의 ○○○ ..." 푸터 제거 (ReportDocument에 자체 발행/서명란 있음).
+ *  - ragEvidence: [RAG 참고 근거] 섹션 텍스트 → 소견 근거 자료 패널에 표시. */
+function splitNarrative(raw: string | null | undefined): { body: string; ragEvidence: string } {
+  let s = (raw || "").trim();
+  if (!s) return { body: "", ragEvidence: "" };
+  const start = s.indexOf("상기 인은");
+  if (start > 0) s = s.slice(start);
+  let ragEvidence = "";
+  const ragStart = s.indexOf("[RAG 참고 근거");
+  if (ragStart >= 0) {
+    const after = s.slice(ragStart + 1);
+    const nextRel = after.search(/\n\[[^\]\n]+\]/);  // 다음 [섹션] 헤더(=진단명)
+    const ragEnd = nextRel >= 0 ? ragStart + 1 + nextRel : s.length;
+    ragEvidence = s.slice(ragStart, ragEnd).trim();
+    s = (s.slice(0, ragStart).trimEnd() + "\n\n" + s.slice(ragEnd).trimStart()).trim();
+  }
+  const sig = s.search(/진료의\s*○○○/);
+  if (sig >= 0) s = s.slice(0, sig).trim();
+  s = s.replace(/[─-]{5,}\s*$/g, "").trim();
+  return { body: s, ragEvidence };
+}
 
 /* ─────────────────────────────────────────────────────────
    say-6 소견서 생성 워크스테이션 — 3-pane
@@ -73,11 +97,16 @@ export default function ReportEditorPage() {
   // 로컬 캐시에 이전 검토/서명 상태가 있으면 그 값으로 시작 (정적 데모 환자 보존)
   const [modalResults, setModalResults] = useState<ModalResults | null>(null);
   const [aiNarrative, setAiNarrative] = useState<string | null>(() => getLocalReportEdits(id) ?? null);
+  // 실제 RAG 검색 결과(백엔드 generateReport) — 소견 근거 자료에 표시.
+  const [similarCases, setSimilarCases] = useState<Array<{ chunk_type?: string; hadm_id?: string; similarity?: number; snippet?: string }>>([]);
+  // RAG 참고 근거(공통점/차이점) 텍스트 — 본문에서 분리해 소견 근거 자료에 표시.
+  const [ragEvidence, setRagEvidence] = useState<string>("");
+  // 소견서 생성 중 여부 — 라이브 환자는 RAG 생성(~15초) 완료 전까지 '생성 중' 표시(정적 데모 숨김).
+  const [generating, setGenerating] = useState<boolean>(!!encounterId);
   const [reportId, setReportId] = useState<number | null>(null);
   const [reportStatus, setReportStatus] = useState<ReportStatus>(
     () => getLocalReportStatus(id) ?? "preliminary",
   );
-  const initialSignature = getLocalReportSignature(id) ?? "";
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -105,14 +134,30 @@ export default function ReportEditorPage() {
       if (existing) {
         setReportId(existing.id);
         setReportStatus(existing.status);
-        if (existing.physician_edits) setAiNarrative(existing.physician_edits);
+        // 의사 수정본(physician_edits) 있으면 그것 우선, 없으면 저장된 RAG 종합소견(ai_diagnosis)을 본문으로.
+        // narrative는 splitNarrative로 헤더/푸터/RAG참고근거를 정리해 본문/근거자료로 분리.
+        if (existing.physician_edits) {
+          setAiNarrative(existing.physician_edits);
+        } else if (existing.ai_diagnosis) {
+          const { body, ragEvidence: ev } = splitNarrative(existing.ai_diagnosis);
+          setAiNarrative(body);
+          if (ev) setRagEvidence(ev);
+        }
+        setGenerating(false);
       } else {
         const r = await generateReport(encounterId);
-        if (stopped || !r) return;
+        if (stopped) return;
+        setGenerating(false);  // 성공/실패 무관 — 생성 시도 종료
+        if (!r) return;
         if (r.report_id != null) setReportId(Number(r.report_id));
         setReportStatus("preliminary");
-        // r.narrative(Bedrock 장문)는 DB에 ai_diagnosis로 저장되지만 본문엔 사용하지 않음
-        // 알림 패널/리스트 즉시 새로고침 — preliminary 상태가 '서명 필요'로 즉시 뜨도록.
+        // 실제 RAG+Bedrock 종합소견 → 헤더/푸터/RAG참고근거 정리 후 본문 사용 + 근거자료 분리.
+        if (r.narrative) {
+          const { body, ragEvidence: ev } = splitNarrative(r.narrative);
+          setAiNarrative(body);
+          if (ev) setRagEvidence(ev);
+        }
+        if (r.similar_cases && r.similar_cases.length) setSimilarCases(r.similar_cases);
         window.dispatchEvent(new Event("say6:reports:invalidate"));
       }
     })();
@@ -133,20 +178,25 @@ export default function ReportEditorPage() {
 
   return (
     <AppShell notifications={3}>
-      {/* 4-컬럼: 환자정보 · 검사결과 · AI 판독결과 · AI 종합소견 — 세로 꽉 채움 */}
-      <div className="max-w-[1800px] mx-auto px-5 py-4 grid grid-cols-1 lg:grid-cols-[280px_1fr_1fr_1.1fr] gap-4 items-stretch min-h-[calc(100vh-5rem)]">
-        <PatientInfoSidebar patient={patient} />
-        <PaneExamResults patient={patient} modalResults={modalResults} />
-        <PaneAIAnalysis patient={patient} />
-        <PaneAISummary
-          patient={patient}
-          canEdit={canEdit}
-          aiNarrative={aiNarrative}
-          reportId={reportId}
-          reportStatus={reportStatus}
-          initialSignature={initialSignature}
-          onGoToReports={() => nav("/demo/reports")}
-        />
+      {/* 좌: 환자정보(다른 페이지와 동일 — 가장자리 flush·풀하이트·sticky) · 우: 검사결과·AI판독·AI종합소견 3컬럼 */}
+      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)] lg:grid lg:grid-cols-[390px_minmax(0,1fr)] lg:items-start">
+        <PatientInfoSidebar patient={patient} allowEdit className="lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:overflow-y-auto" />
+        {/* 2컬럼: 검사 결과(원데이터) · AI 종합소견(소견서 + 소견 근거 자료) */}
+        <div className="min-w-0 px-5 py-4 grid grid-cols-1 lg:grid-cols-[1fr_1.6fr] gap-4 items-stretch lg:min-h-[calc(100vh-3.5rem)]">
+          <PaneExamResults patient={patient} modalResults={modalResults} />
+          <PaneAISummary
+            patient={patient}
+            canEdit={canEdit}
+            aiNarrative={aiNarrative}
+            similarCases={similarCases}
+            ragEvidence={ragEvidence}
+            generating={generating}
+            modalResults={modalResults}
+            reportId={reportId}
+            reportStatus={reportStatus}
+            onGoToReports={() => nav("/demo/triage")}
+          />
+        </div>
       </div>
     </AppShell>
   );
@@ -321,8 +371,36 @@ function PaneExamResults({
   patient: DemoPatient;
   modalResults: ModalResults | null;
 }) {
-  const read = readModalsOf(patient);
+  // 표시할 모달: 실제 백엔드 결과(modalResults)가 있으면 그 모달을 모두 노출.
+  // (정적 recommendation.reasons 접두사에만 의존하면 ECG/CXR이 빠져 'LAB만' 뜨던 버그 수정.)
+  const read = useMemo(() => {
+    const s = readModalsOf(patient);
+    if (modalResults) {
+      (["ECG", "CXR", "LAB"] as ModalKey[]).forEach((m) => { if (modalResults[m]) s.add(m); });
+    }
+    return s;
+  }, [patient, modalResults]);
   const data = useMemo(() => buildExamData(patient), [patient]);
+  // 실제 LAB 결과(modalResults.LAB.lab_summary)로 표 구성 — 있으면 정적 데모 대신 사용.
+  const realLabRows = useMemo<Array<[string, string, string, string]> | null>(() => {
+    const ls = (modalResults?.LAB as { lab_summary?: Array<Record<string, unknown>> } | null)?.lab_summary;
+    if (!Array.isArray(ls) || ls.length === 0) return null;
+    const NAME: Record<string, string> = {
+      wbc: "WBC", hemoglobin: "Hb", platelet: "Platelet", creatinine: "Creatinine",
+      bun: "BUN", sodium: "Sodium", potassium: "Potassium", glucose: "Glucose",
+      troponin_t: "Troponin T", ntprobnp: "NT-proBNP", ck_mb: "CK-MB",
+      lactate: "Lactate", ast: "AST", albumin: "Albumin", calcium: "Calcium",
+    };
+    return ls
+      .filter((r) => r.measured !== false)
+      .map((r): [string, string, string, string] => {
+        const name = NAME[String(r.feature)] || String(r.feature);
+        const val = `${r.value}${r.unit ? " " + r.unit : ""}`;
+        const flag = r.status === "high" ? "H" : r.status === "low" ? "L" : "";
+        const ref = r.reference_low != null && r.reference_high != null ? `${r.reference_low}–${r.reference_high}` : "";
+        return [name, val, flag, ref];
+      });
+  }, [modalResults]);
   const [view, setView] = useState<"numeric" | "narrative">("numeric");
   const [modalKind, setModalKind] = useState<ModalKey | null>(null);
 
@@ -365,11 +443,11 @@ function PaneExamResults({
       }
     >
       {/* ─── 활력징후 ─── */}
-      <SectionLabel hint="환자 등록(트리아지) 정보에서 자동 연동">
+      <SectionLabel>
         활력징후 (Vital Signs)
       </SectionLabel>
       {view === "numeric" ? (
-        <table className="w-full text-[12px] border-collapse mb-4">
+        <table className="w-full text-[14px] border-collapse mb-4">
           <thead>
             <tr className="bg-slate-100 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted whitespace-nowrap">
               <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">항목</th>
@@ -384,7 +462,7 @@ function PaneExamResults({
                 <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-700 dark:text-slate-200 whitespace-nowrap">{r.name}</td>
                 <td className={cn("px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-right font-numeric font-bold whitespace-nowrap",
                   r.flag ? "text-red-600" : "text-slate-900 dark:text-white")}>
-                  {r.value ?? "—"}<span className="text-[10px] font-normal text-slate-400 dark:text-vuno-dim ml-0.5">{r.unit}</span>
+                  {r.value ?? "—"}<span className="text-[12px] font-normal text-slate-400 dark:text-vuno-dim ml-0.5">{r.unit}</span>
                 </td>
                 <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-center whitespace-nowrap">
                   {r.flag === "H" ? <span className="text-red-600 font-bold">H · 높음</span>
@@ -397,7 +475,7 @@ function PaneExamResults({
           </tbody>
         </table>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.vitalNarrative}</p>
+        <p className="text-[14px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.vitalNarrative}</p>
       )}
 
       {/* ─── ECG ─── */}
@@ -411,13 +489,13 @@ function PaneExamResults({
         <div className="grid grid-cols-2 gap-1.5 mb-4">
           {data.ecgMeasures.map(([k, val]) => (
             <div key={k} className="bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border px-2 py-1.5">
-              <div className="text-[10px] text-slate-500 dark:text-vuno-muted whitespace-nowrap">{k}</div>
-              <div className="text-[13px] font-numeric font-bold text-slate-900 dark:text-white whitespace-nowrap">{val}</div>
+              <div className="text-[12px] text-slate-500 dark:text-vuno-muted whitespace-nowrap">{k}</div>
+              <div className="text-[15px] font-numeric font-bold text-slate-900 dark:text-white whitespace-nowrap">{val}</div>
             </div>
           ))}
         </div>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.ecgNarrative}</p>
+        <p className="text-[14px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.ecgNarrative}</p>
       )}
       </>)}
 
@@ -431,25 +509,24 @@ function PaneExamResults({
       {view === "numeric" ? (
         <div className="mb-4 border border-slate-200 dark:border-vuno-border bg-slate-50 dark:bg-vuno-bg px-2.5 py-2 flex items-start gap-2">
           <ImageIcon className="h-4 w-4 text-slate-400 dark:text-vuno-dim flex-shrink-0 mt-0.5" />
-          <span className="text-[11px] text-slate-500 dark:text-vuno-muted leading-relaxed">
+          <span className="text-[13px] text-slate-500 dark:text-vuno-muted leading-relaxed">
             영상 검사 — 수치 데이터 없음. 판독 결과는 <b className="text-slate-700 dark:text-slate-200">검사결과지</b>에서 확인하세요.
           </span>
         </div>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.cxrNarrative}</p>
+        <p className="text-[14px] leading-relaxed text-slate-700 dark:text-slate-200 mb-4">{data.cxrNarrative}</p>
       )}
       </>)}
 
       {/* ─── LAB ─── */}
       {read.has("LAB") && (<>
       <SectionLabel
-        hint="응급 혈액검사 · 별도 채혈 결과"
         action={<SheetButton onClick={() => setModalKind("LAB")} live={!!modalResults?.LAB} />}
       >
         혈액 검사 (LAB)
       </SectionLabel>
       {view === "numeric" ? (
-        <table className="w-full text-[12px] border-collapse">
+        <table className="w-full text-[14px] border-collapse">
           <thead>
             <tr className="bg-slate-100 dark:bg-vuno-bg text-slate-600 dark:text-vuno-muted whitespace-nowrap">
               <th className="text-left px-2 py-1.5 font-semibold border border-slate-200 dark:border-vuno-border">항목</th>
@@ -458,7 +535,7 @@ function PaneExamResults({
             </tr>
           </thead>
           <tbody>
-            {data.labRows.map(([name, val, flag, ref]) => (
+            {(realLabRows ?? data.labRows).map(([name, val, flag, ref]) => (
               <tr key={name} className="hover:bg-slate-50 dark:hover:bg-vuno-elevated">
                 <td className="px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-slate-700 dark:text-slate-200 whitespace-nowrap">{name}</td>
                 <td className={cn("px-2 py-1.5 border border-slate-200 dark:border-vuno-border text-right font-numeric font-bold whitespace-nowrap",
@@ -471,7 +548,7 @@ function PaneExamResults({
           </tbody>
         </table>
       ) : (
-        <p className="text-[12px] leading-relaxed text-slate-700 dark:text-slate-200">{data.labNarrative}</p>
+        <p className="text-[14px] leading-relaxed text-slate-700 dark:text-slate-200">{data.labNarrative}</p>
       )}
       </>)}
 
@@ -495,9 +572,9 @@ function SheetButton({ onClick, live }: { onClick: () => void; live?: boolean })
   return (
     <button
       onClick={onClick}
-      className="inline-flex items-center gap-1 px-2 py-0.5 border border-vuno-cyan/50 text-vuno-cyanDim hover:bg-vuno-cyan/10 text-[10px] font-bold transition-colors whitespace-nowrap flex-shrink-0"
+      className="inline-flex items-center gap-1.5 px-3 py-1 rounded border border-vuno-cyan/50 text-vuno-cyanDim hover:bg-vuno-cyan/10 text-[13px] font-bold transition-colors whitespace-nowrap flex-shrink-0"
     >
-      <FileText className="h-3 w-3 flex-shrink-0" />
+      <FileText className="h-4 w-4 flex-shrink-0" />
       <span>검사결과지</span>
       {live && <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 flex-shrink-0" title="백엔드 실시간 연동" />}
     </button>
@@ -727,29 +804,37 @@ function ResultSheetBody({ sheet }: { sheet: ResultSheet }) {
 /* ═════════════════════════════════════════════════════════
    PANE 2 — AI 판독결과 (모달별)
    ═════════════════════════════════════════════════════════ */
-function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
+function SourceEvidence({ patient, similarCases, ragEvidence, modalResults }: { patient: DemoPatient; similarCases?: Array<{ chunk_type?: string; hadm_id?: string; similarity?: number; snippet?: string }>; ragEvidence?: string; modalResults?: ModalResults | null }) {
   const reasonMap = useMemo(() => {
     const map: Partial<Record<ModalKey, string>> = {};
+    // 1순위: 실제 modalResults의 summary (백엔드 판독). CXR은 한국어로 재구성. 없으면 정적 reasons.
+    (["ECG", "CXR", "LAB"] as ModalKey[]).forEach((m) => {
+      const r = modalResults?.[m] as Record<string, unknown> | null | undefined;
+      if (!r) return;
+      map[m] = m === "CXR"
+        ? cxrKoreanSummary(r)
+        : String((r as { summary?: string }).summary ?? "");
+    });
     patient.recommendation?.reasons.forEach((r) => {
-      const m = r.match(/^(ECG|CXR|LAB)\s*[:：]\s*(.+)$/);
-      if (m) map[m[1] as ModalKey] = m[2];
+      const mm = r.match(/^(ECG|CXR|LAB)\s*[:：]\s*(.+)$/);
+      if (mm && !map[mm[1] as ModalKey]) map[mm[1] as ModalKey] = mm[2];
     });
     return map;
-  }, [patient]);
+  }, [patient, modalResults]);
 
-  // AI가 실제 판독한 모달만 노출 (reasons 접두사 기준) — 미요청 모달 숨김
+  // 실제 판독된 모달만 노출 — modalResults 우선, 없으면 reasons 접두사
   const allModals: Array<{ key: ModalKey; icon: typeof Activity; conf: number }> = [
     { key: "ECG", icon: Activity,     conf: patient.id === "042" ? 0.89 : 0.85 },
     { key: "CXR", icon: ImageIcon,    conf: patient.id === "042" ? 0.94 : 0.91 },
     { key: "LAB", icon: FlaskConical, conf: patient.id === "042" ? 0.92 : 0.88 },
   ];
-  const modals = allModals.filter((m) => reasonMap[m.key]);
+  const modals = allModals.filter((m) => modalResults?.[m.key] || reasonMap[m.key]);
 
   return (
-    <Pane title="AI 판독결과" subtitle="AI Analysis · Per Modality" icon={Sparkles} tone="brand">
-      <div className="space-y-2.5">
+    <div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {modals.length === 0 && (
-          <div className="text-[11px] text-slate-400 dark:text-vuno-dim py-6 text-center">판독된 검사가 없습니다.</div>
+          <div className="text-[12px] text-slate-400 dark:text-vuno-dim py-6 text-center col-span-full">판독된 검사가 없습니다.</div>
         )}
         {modals.map((m) => {
           const status = patient[m.key.toLowerCase() as "ecg" | "cxr" | "lab"];
@@ -759,12 +844,12 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
             <div key={m.key} className="border border-slate-200 dark:border-vuno-border bg-white dark:bg-vuno-surface">
               <div className="flex items-center gap-2 px-2.5 py-1.5 bg-slate-50 dark:bg-vuno-bg border-b border-slate-200 dark:border-vuno-border">
                 <m.icon className="h-3.5 w-3.5 text-slate-600 dark:text-vuno-muted" />
-                <span className="text-[11px] font-bold text-slate-800 dark:text-white">{m.key}</span>
-                <span className="text-[9px] text-slate-400 dark:text-vuno-dim">
+                <span className="text-[14px] font-bold text-slate-800 dark:text-white">{m.key}</span>
+                <span className="text-[12px] text-slate-400 dark:text-vuno-dim">
                   {m.key === "ECG" ? "심전도 12-Lead" : m.key === "CXR" ? "흉부 X-ray" : "혈액 검사"}
                 </span>
                 <span className={cn(
-                  "ml-auto text-[11px] font-numeric font-bold",
+                  "ml-auto text-[14px] font-numeric font-bold",
                   m.conf >= 0.9 ? "text-emerald-600" : "text-amber-600",
                 )}>
                   {Math.round(m.conf * 100)}%
@@ -772,16 +857,16 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
               </div>
               <div className="px-2.5 py-2">
                 {status === "running" ? (
-                  <div className="text-[11px] text-slate-400 dark:text-vuno-dim italic">분석 중…</div>
+                  <div className="text-[13px] text-slate-400 dark:text-vuno-dim italic">분석 중…</div>
                 ) : summary ? (
                   <div className="flex gap-1.5">
                     {isCritical && <span className="text-red-600 flex-shrink-0">⚠</span>}
-                    <span className={cn("text-[11px] leading-relaxed", isCritical ? "text-red-700 font-medium" : "text-slate-700 dark:text-slate-200")}>
+                    <span className={cn("text-[13px] leading-relaxed", isCritical ? "text-red-700 font-medium" : "text-slate-700 dark:text-slate-200")}>
                       {summary}
                     </span>
                   </div>
                 ) : (
-                  <div className="text-[11px] text-slate-400 dark:text-vuno-dim">판독 결과 없음</div>
+                  <div className="text-[13px] text-slate-400 dark:text-vuno-dim">판독 결과 없음</div>
                 )}
                 {status !== "running" && (
                   <div className="mt-2 h-1 bg-slate-200 dark:bg-vuno-elevated overflow-hidden">
@@ -797,12 +882,42 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
         })}
       </div>
 
-      {patient.recommendation && patient.recommendation.similarCases.length > 0 && (
+      {/* RAG 참고 근거 — 본문에서 분리한 [RAG 참고 근거] 섹션(공통점/차이점) */}
+      {ragEvidence && (
+        <>
+          <SectionLabel className="mt-4">RAG 참고 근거</SectionLabel>
+          <div className="px-2.5 py-2 bg-amber-50/60 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-[12px] text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-line">
+            {ragEvidence.replace(/^\[RAG 참고 근거[^\]]*\]\s*/, "")}
+          </div>
+        </>
+      )}
+
+      {/* RAG 유사 사례 — 실제 백엔드 검색 결과(similarCases) 우선, 없으면 정적 데모 폴백 */}
+      {similarCases && similarCases.length > 0 ? (
+        <>
+          <SectionLabel className="mt-4">RAG 유사 사례 (MIMIC 실제 검색)</SectionLabel>
+          <div className="space-y-1.5">
+            {similarCases.map((c, i) => (
+              <div key={c.hadm_id ?? i} className="px-2.5 py-2 bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className="text-[12px] font-bold text-slate-700 dark:text-slate-200">
+                    {c.chunk_type ? c.chunk_type.toUpperCase() : "CASE"}{c.hadm_id ? ` · hadm ${c.hadm_id}` : ""}
+                  </span>
+                  {typeof c.similarity === "number" && (
+                    <span className="ml-auto font-numeric font-bold text-vuno-cyanDim text-[13px]">유사도 {Math.round(c.similarity * 100)}%</span>
+                  )}
+                </div>
+                {c.snippet && <div className="text-[12px] text-slate-600 dark:text-vuno-muted leading-relaxed">{c.snippet}</div>}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : patient.recommendation && patient.recommendation.similarCases.length > 0 ? (
         <>
           <SectionLabel className="mt-4">RAG 유사 사례</SectionLabel>
           <div className="flex flex-wrap gap-1.5">
             {patient.recommendation.similarCases.map((c) => (
-              <span key={c.id} className="inline-flex items-center gap-1 px-2 py-1 bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border text-[10px]">
+              <span key={c.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border text-[13px]">
                 <span className="font-numeric text-slate-700 dark:text-slate-200">{c.id}</span>
                 <span className="text-slate-400 dark:text-vuno-dim">·</span>
                 <span className="font-numeric font-bold text-vuno-cyanDim">{Math.round(c.similarity * 100)}%</span>
@@ -810,32 +925,33 @@ function PaneAIAnalysis({ patient }: { patient: DemoPatient }) {
             ))}
           </div>
         </>
-      )}
-    </Pane>
+      ) : null}
+    </div>
   );
 }
 
 /* ═════════════════════════════════════════════════════════
    PANE 3 — AI 종합소견 (탭 + 편집 + 서명)
    ═════════════════════════════════════════════════════════ */
-// 소견서 진행 단계 — 초안 → 검토 → 서명 → EMR 전송
+// 소견서 진행 단계 — 초안 → 소견 확정·EMR 전송 (서명 단계 없음)
 type StepKey = "preliminary" | "reviewed" | "signed" | "emr";
 const STATUS_STEPS: { key: StepKey; label: string }[] = [
-  { key: "preliminary", label: "초안" },
-  { key: "reviewed",    label: "검토" },
-  { key: "signed",      label: "서명" },
-  { key: "emr",         label: "EMR 전송" },
+  { key: "preliminary", label: "소견 검토" },
+  { key: "signed",      label: "소견 확정 · EMR 전송" },
 ];
 
 function PaneAISummary({
-  patient, canEdit, aiNarrative, reportId, reportStatus, initialSignature, onGoToReports,
+  patient, canEdit, aiNarrative, similarCases, ragEvidence, generating, modalResults, reportId, reportStatus, onGoToReports,
 }: {
   patient: DemoPatient;
   canEdit: boolean;
   aiNarrative: string | null;
+  similarCases?: Array<{ chunk_type?: string; hadm_id?: string; similarity?: number; snippet?: string }>;
+  ragEvidence?: string;
+  generating?: boolean;
+  modalResults?: ModalResults | null;
   reportId: number | null;
   reportStatus: ReportStatus;
-  initialSignature: string;
   onGoToReports: () => void;
 }) {
   const rec = patient.recommendation;
@@ -871,41 +987,30 @@ function PaneAISummary({
 
   const [edited, setEdited] = useState(aiDraft);
   const [status, setStatus] = useState<ReportStatus>(reportStatus);
-  const [signature, setSignature] = useState(initialSignature);
   const [busy, setBusy] = useState(false);
   const [emrPopup, setEmrPopup] = useState(false);
-  // 서명 완료 = 초안·검토·서명·EMR전송 4단계 모두 완료 처리
-  const stepIdx = status === "signed" ? 3 : STATUS_STEPS.findIndex((s) => s.key === status);
+  const [evidenceOpen, setEvidenceOpen] = useState(false); // 소견 근거 자료 토글
+  // 확정(=signed) 시 마지막 단계, 그 외(초안/검토)는 0단계
+  const stepIdx = status === "signed" ? 1 : 0;
 
   // 백엔드에서 로드한 상태/본문 동기화
   useEffect(() => { setStatus(reportStatus); }, [reportStatus]);
   useEffect(() => { if (aiNarrative) setEdited(aiNarrative); }, [aiNarrative]);
   // 로컬 상태 캐시 — 환자 목록/종합소견서 페이지가 즉시 반영하도록.
-  // "preliminary"는 캐시 안 함: ReportEditor 가 마운트만 해도 leak 되어 환자 목록에
-  // "작성 가능"으로 잘못 표시되는 문제 방지. 검토·서명 등 실제 상태 전이만 캐시.
+  // "preliminary"는 캐시 안 함(마운트만 해도 leak 방지). 확정 등 실제 전이만 캐시.
   useEffect(() => {
     if (status !== "preliminary") setLocalReportStatus(patient.id, status);
   }, [patient.id, status]);
   useEffect(() => { setLocalReportEdits(patient.id, edited); }, [patient.id, edited]);
-  useEffect(() => {
-    if (signature.trim()) setLocalReportSignature(patient.id, signature);
-  }, [patient.id, signature]);
 
-  // 초안 상태에선 수정 불가 — '소견 검토'를 눌러 검토 상태로 진입해야 편집 가능
-  const editable = canEdit && status === "reviewed";
-  const canFinalize = canEdit && status === "reviewed" && signature.trim().length > 0 && !busy;
+  // 확정 전까지 본문 편집 가능 (별도 검토 단계 없음)
+  const editable = canEdit && status !== "signed";
+  const canConfirm = canEdit && status !== "signed" && !busy;
 
-  // 소견 검토 — 백엔드 PATCH /reports/{id}/review (백엔드 미연동 시 로컬 전이)
-  async function handleReview() {
+  // 소견 확정 & EMR 전송 — 백엔드 POST /reports/{id}/sign → status signed + FHIR final(EMR)
+  async function handleConfirm() {
     setBusy(true);
-    if (reportId != null) await reviewReport(reportId, edited);
-    setStatus("reviewed");
-    setBusy(false);
-  }
-  // 소견 확정 — 백엔드 POST /reports/{id}/sign → FHIR final = EMR 전송
-  async function handleSign() {
-    setBusy(true);
-    if (reportId != null) await signReport(reportId, signature.trim() || "physician", edited);
+    if (reportId != null) await signReport(reportId, "physician", edited);
     setStatus("signed");
     setBusy(false);
     setEmrPopup(true); // EMR 전송 안내 팝업 — 페이지 이동 없음
@@ -919,127 +1024,124 @@ function PaneAISummary({
       icon={PenLine}
       tone="brand"
       headerRight={
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => window.print()}
             title="소견서 인쇄 / PDF 저장"
-            className="h-7 w-7 grid place-items-center rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-vuno-border dark:bg-vuno-surface dark:text-vuno-muted dark:hover:bg-vuno-elevated transition-colors"
+            className="h-9 px-3.5 inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 dark:border-vuno-border dark:bg-vuno-surface dark:text-vuno-muted dark:hover:bg-vuno-elevated transition-colors text-[14px] font-bold"
           >
-            <Printer className="h-3.5 w-3.5" />
+            <Printer className="h-4 w-4" /> 인쇄
           </button>
           <button
-            disabled={!canEdit || status !== "preliminary" || busy}
-            onClick={handleReview}
+            disabled={!canConfirm}
+            onClick={handleConfirm}
+            title={status === "signed" ? "이미 소견 확정·EMR 전송 완료" : "소견을 확정하고 EMR로 전송합니다"}
             className={cn(
-              "h-7 px-3 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap",
-              status === "preliminary" && canEdit && !busy
-                ? "bg-brand-600 text-white hover:bg-brand-700"
-                : "bg-slate-200 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim cursor-not-allowed",
-            )}
-          >
-            소견 검토
-          </button>
-          <button
-            disabled={!canFinalize}
-            onClick={handleSign}
-            title={
-              status === "signed" ? "이미 서명·EMR 전송 완료" :
-              status !== "reviewed" ? "먼저 '소견 검토'를 진행하세요" :
-              !signature.trim() ? "서명 입력 후 확정할 수 있습니다" : ""
-            }
-            className={cn(
-              "h-7 px-3 rounded-lg text-[11px] font-bold transition-colors whitespace-nowrap",
-              canFinalize
+              "h-9 px-4 rounded-lg text-[14px] font-bold transition-colors whitespace-nowrap",
+              canConfirm
                 ? "bg-slate-900 text-white hover:bg-black dark:bg-brand-600 dark:hover:bg-brand-700"
                 : "bg-slate-200 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim cursor-not-allowed",
             )}
           >
-            소견 확정 · EMR 전송
+            {status === "signed" ? "확정 완료" : "소견 확정 & EMR 전송"}
           </button>
         </div>
       }
     >
-      {/* 상태 진행 단계 — 초안 → 검토 → 서명 → EMR 전송 */}
-      <div className="flex items-center gap-1 mb-3">
+      {/* 상태 진행 단계(확대) + AI 신뢰도(오른쪽 배치) */}
+      <div className="flex items-center gap-1.5 mb-3 flex-shrink-0">
         {STATUS_STEPS.map((s, i) => (
-          <div key={s.key} className="flex items-center gap-1">
+          <div key={s.key} className="flex items-center gap-1.5">
             <span className={cn(
-              "inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold whitespace-nowrap",
+              "inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-[13px] font-bold whitespace-nowrap",
               i < stepIdx  ? "bg-slate-200 text-slate-500 dark:bg-vuno-elevated dark:text-vuno-muted" :
-              i === stepIdx ? (
-                status === "signed"   ? "bg-emerald-600 text-white" :
-                status === "reviewed" ? "bg-blue-600 text-white" :
-                                        "bg-amber-500 text-white"
-              ) : "bg-slate-100 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim",
+              i === stepIdx ? (status === "signed" ? "bg-emerald-600 text-white" : "bg-amber-500 text-white")
+                            : "bg-slate-100 text-slate-400 dark:bg-vuno-bg dark:text-vuno-dim",
             )}>
               <span className="font-numeric">{i + 1}</span> {s.label}
             </span>
             {i < STATUS_STEPS.length - 1 && (
-              <span className={cn("text-[10px]", i < stepIdx ? "text-slate-400 dark:text-vuno-dim" : "text-slate-300 dark:text-vuno-dim")}>›</span>
+              <span className={cn("text-[14px]", i < stepIdx ? "text-slate-400 dark:text-vuno-dim" : "text-slate-300 dark:text-vuno-dim")}>›</span>
             )}
           </div>
         ))}
-        <span className="ml-auto text-[10px] text-slate-500 dark:text-vuno-muted whitespace-nowrap">
-          {status === "preliminary" ? "AI 생성 · 검토 전" :
-           status === "reviewed"    ? "의사 검토 중" :
-                                      "서명 · EMR 전송 완료"}
-        </span>
-      </div>
-
-      {/* AI 배지 */}
-      <div className="flex items-center gap-1.5 mb-2">
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-vuno-cyan/10 border border-vuno-cyan/40 text-[10px] font-bold text-vuno-cyanDim">
-          <Sparkles className="h-2.5 w-2.5" /> AI {rec ? Math.round(rec.confidence * 100) : "—"}%
-        </span>
-        <span className="text-[11px] text-slate-500 dark:text-vuno-muted">Bedrock Claude · RAG 종합 생성</span>
-        <button className="ml-auto text-slate-400 dark:text-vuno-dim hover:text-slate-600 dark:hover:text-vuno-muted" title="복사">
-          <Copy className="h-3 w-3" />
-        </button>
-      </div>
-
-      {/* 정식 소견서 양식 — 소견 검토 시 본문 편집 가능 */}
-      <div className="flex-1 min-h-0">
-        <ReportDocument
-          patient={patient}
-          recommendation={rec}
-          edited={edited}
-          editable={editable}
-          onEditedChange={setEdited}
-          status={status}
-          signature={signature}
-        />
-      </div>
-
-      {!canEdit && (
-        <div className="mt-2 text-[10px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 px-2 py-1.5">
-          ⚠ 읽기 전용 — 소견서 편집·확정은 의사 권한이 필요합니다.
-        </div>
-      )}
-
-      {canEdit && status === "preliminary" && (
-        <div className="mt-2 text-[10px] text-slate-600 dark:text-vuno-muted bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border px-2 py-1.5">
-          상단 <b className="text-slate-800 dark:text-white">소견 검토</b> 버튼을 누르면 소견서 본문을 수정할 수 있습니다.
-        </div>
-      )}
-
-      {canEdit && status === "reviewed" && (
-        <div className="mt-2 pt-2 border-t border-slate-200 dark:border-vuno-border">
-          <div className="flex items-center gap-2">
-            <PenLine className="h-3.5 w-3.5 text-slate-400 dark:text-vuno-dim flex-shrink-0" />
-            <input
-              value={signature}
-              onChange={(e) => setSignature(e.target.value)}
-              placeholder="담당 의사 성명 입력 (예: 정OO)"
-              className="flex-1 h-7 px-2 text-[11px] border border-slate-300 dark:border-vuno-border bg-white dark:bg-vuno-bg dark:text-white focus:outline-none focus:border-vuno-cyan"
+        {/* 오른쪽 클러스터 — AI 신뢰도(왼쪽) + 소견 근거 자료 포스트잇(오른쪽) */}
+        <div className="ml-auto flex items-center gap-2">
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-vuno-cyan/10 border border-vuno-cyan/40 text-[13px] font-bold text-vuno-cyanDim whitespace-nowrap">
+            <Sparkles className="h-3.5 w-3.5" /> AI {rec ? Math.round(rec.confidence * 100) : "—"}%
+          </span>
+          {/* 종이쪽지에 클립으로 끼운 듯한 버튼 — 누르면 아래로 근거 자료가 쫙 펼쳐짐 */}
+          <button
+            type="button"
+            onClick={() => setEvidenceOpen((o) => !o)}
+            title="소견 근거 자료 — 클릭하면 펼쳐집니다"
+            className={cn(
+              "relative inline-flex items-center mt-1 px-3 py-1.5 text-[13px] font-bold whitespace-nowrap border rounded-[3px] transition-all shadow-[1px_2px_4px_rgba(0,0,0,0.16)]",
+              evidenceOpen
+                ? "bg-amber-200 border-amber-300 text-amber-900 -translate-y-0.5"
+                : "bg-amber-100 border-amber-200 text-amber-900 hover:bg-amber-200 hover:-translate-y-0.5",
+            )}
+          >
+            {/* 종이 위쪽 모서리에 걸쳐진 금속 클립 */}
+            <Paperclip
+              className="absolute -top-2.5 left-2 h-[19px] w-[19px] text-slate-500 dark:text-slate-300 rotate-[20deg] drop-shadow-[0_1px_1.5px_rgba(0,0,0,0.35)]"
+              strokeWidth={2.4}
             />
-          </div>
-          <div className="mt-1 text-[10px] text-slate-500 dark:text-vuno-muted">
-            {signature.trim()
-              ? "서명 입력 완료 — 상단 소견 확정 버튼으로 EMR 전송할 수 있습니다."
-              : "서명을 입력해야 소견 확정이 활성화됩니다."}
-          </div>
+            <span className="pl-4">소견 근거 자료</span>
+          </button>
         </div>
-      )}
+      </div>
+
+      {/* 소견서 + 소견 근거 자료 — 전체가 함께 스크롤 (소견서는 세로로 길게) */}
+      <div className="flex-1 min-h-0 overflow-auto space-y-3">
+        {/* 노란 포스트잇 패널 — 헤더 버튼 토글 시 맨 위로 쫙 펼쳐짐 */}
+        {evidenceOpen && (
+          <div className="relative bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 shadow-[3px_3px_10px_rgba(0,0,0,0.15)] p-4">
+            {/* 접힌 모서리 (포스트잇 느낌) */}
+            <div className="absolute top-0 right-0 w-0 h-0 border-t-[18px] border-l-[18px] border-t-amber-300 dark:border-t-amber-500/50 border-l-transparent" />
+            <div className="flex items-center gap-1.5 mb-3">
+              <Paperclip className="h-[18px] w-[18px] text-amber-700 dark:text-amber-300 -rotate-12" strokeWidth={2.4} />
+              <span className="text-[16px] font-bold text-amber-900 dark:text-amber-200">소견 근거 자료</span>
+              <button type="button" onClick={() => setEvidenceOpen(false)} title="접기" className="ml-auto text-amber-700 dark:text-amber-300 hover:text-amber-900 dark:hover:text-amber-100">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <SourceEvidence patient={patient} similarCases={similarCases} ragEvidence={ragEvidence} modalResults={modalResults} />
+          </div>
+        )}
+
+        {generating && !aiNarrative ? (
+          <div className="bg-white dark:bg-vuno-surface border border-slate-300 dark:border-vuno-border w-full max-w-[680px] mx-auto py-20 flex flex-col items-center justify-center text-center">
+            <Loader2 className="h-9 w-9 text-brand-500 animate-spin mb-4" />
+            <div className="text-[16px] font-bold text-slate-800 dark:text-white">AI 종합소견서 생성 중…</div>
+            <div className="text-[13px] text-slate-500 dark:text-vuno-muted mt-1.5">
+              검사 결과 + RAG 유사사례를 종합해 소견서를 작성하고 있습니다 (약 15초)
+            </div>
+          </div>
+        ) : (
+          <ReportDocument
+            patient={patient}
+            recommendation={rec}
+            edited={edited}
+            editable={editable}
+            onEditedChange={setEdited}
+            status={status}
+            signature=""
+          />
+        )}
+
+        {!canEdit && (
+          <div className="text-[12px] text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/15 border border-amber-200 dark:border-amber-500/40 px-3 py-2">
+            ⚠ 읽기 전용 — 소견서 편집·확정은 의사 권한이 필요합니다.
+          </div>
+        )}
+        {canEdit && status !== "signed" && (
+          <div className="text-[13px] text-slate-600 dark:text-vuno-muted bg-slate-50 dark:bg-vuno-bg border border-slate-200 dark:border-vuno-border px-3 py-2 leading-relaxed">
+            소견서 본문을 직접 수정한 뒤 상단 <b className="text-slate-800 dark:text-white">소견 확정 &amp; EMR 전송</b> 버튼을 누르면 확정·전송됩니다.
+          </div>
+        )}
+
+      </div>
     </Pane>
 
     {/* A4 인쇄 전용 시트 — 화면에선 숨김, 인쇄 시에만 표시 */}
@@ -1048,7 +1150,7 @@ function PaneAISummary({
       recommendation={rec}
       narrative={edited}
       status={status}
-      signature={signature}
+      signature=""
     />
 
     {/* EMR 전송 완료 팝업 */}
@@ -1084,7 +1186,7 @@ function PaneAISummary({
               onClick={() => { setEmrPopup(false); onGoToReports(); }}
               className="h-8 px-4 text-[12px] font-bold bg-brand-600 text-white hover:bg-brand-700"
             >
-              종합소견서 목록으로
+              환자정보입력으로
             </button>
           </div>
         </div>
@@ -1115,13 +1217,13 @@ function Pane({
   return (
     <section className="bg-white dark:bg-vuno-surface border border-slate-200 dark:border-vuno-border rounded-xl shadow-sm overflow-hidden flex flex-col">
       <header className={cn(
-        "px-3 py-2.5 flex items-center gap-2 border-b border-slate-200 dark:border-vuno-border",
+        "px-4 py-3.5 flex items-center gap-2.5 border-b border-slate-200 dark:border-vuno-border",
         headBg,
       )}>
-        <Icon className={cn("h-[18px] w-[18px] flex-shrink-0", iconCls)} />
+        <Icon className={cn("h-6 w-6 flex-shrink-0", iconCls)} />
         <div className="min-w-0">
-          <div className="text-[15px] font-bold text-slate-900 dark:text-white leading-none whitespace-nowrap">{title}</div>
-          <div className="text-[10px] text-slate-400 dark:text-vuno-dim tracking-wider uppercase mt-0.5 whitespace-nowrap">{subtitle}</div>
+          {/* 영문 부제 제거 — 한글 제목만 크게 */}
+          <div className="text-[20px] font-bold text-slate-900 dark:text-white leading-none whitespace-nowrap">{title}</div>
         </div>
         {headerRight && <div className="ml-auto flex-shrink-0">{headerRight}</div>}
       </header>
@@ -1139,9 +1241,9 @@ function SectionLabel({
   action?: React.ReactNode;
 }) {
   return (
-    <div className={cn("flex items-center gap-1.5 mb-1.5", className)}>
-      <span className="text-[11px] font-bold text-slate-600 dark:text-vuno-muted whitespace-nowrap">{children}</span>
-      {hint && <span className="text-[10px] text-slate-400 dark:text-vuno-dim font-normal truncate">· {hint}</span>}
+    <div className={cn("flex items-center gap-1.5 mb-2", className)}>
+      <span className="text-[14px] font-bold text-slate-700 dark:text-slate-100 whitespace-nowrap">{children}</span>
+      {hint && <span className="text-[11px] text-slate-400 dark:text-vuno-dim font-normal truncate">· {hint}</span>}
       {action && <span className="ml-auto">{action}</span>}
     </div>
   );

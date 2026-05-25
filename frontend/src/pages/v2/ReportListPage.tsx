@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, FileText, ChevronRight } from "lucide-react";
 import { AppShell } from "../../components/v2/AppShell";
-import { getAllPatients, isLivePatient, getLocalReportStatus, type DemoPatient } from "../../lib/v2/demoStore";
+import { getAllPatients, isLivePatient, getLocalReportStatus, getCurrentPatient, type DemoPatient } from "../../lib/v2/demoStore";
+import { PatientInfoSidebar } from "../../components/v2/PatientInfoSidebar";
 import { listReports, type ReportStatus as BackendReportStatus } from "../../lib/v2/api";
 import { KTAS_META, type KTAS } from "../../types/triage";
 import { cn } from "../../lib/cn";
@@ -134,7 +135,10 @@ export default function ReportListPage() {
 
   return (
     <AppShell notifications={counts.review}>
-      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)]">
+      <div className="bg-slate-100 text-slate-900 dark:bg-vuno-bg dark:text-white min-h-[calc(100vh-3.5rem)] lg:grid lg:grid-cols-[390px_1fr] lg:items-stretch">
+      {/* 좌: 현재 환자 정보 사이드바 (고정) */}
+      <PatientInfoSidebar patient={getCurrentPatient()} allowEdit className="hidden lg:block lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:overflow-y-auto" />
+      <div className="min-w-0">
       <div className="max-w-[1500px] mx-auto px-6 py-6">
         {/* 헤더 */}
         <div className="mb-5">
@@ -247,6 +251,7 @@ export default function ReportListPage() {
             <div className="py-16 text-center text-slate-400 dark:text-vuno-dim text-sm">조건에 맞는 환자가 없습니다.</div>
           )}
         </div>
+      </div>
       </div>
       </div>
     </AppShell>

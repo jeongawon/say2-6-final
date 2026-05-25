@@ -8,7 +8,9 @@ import react from "@vitejs/plugin-react";
 // prod 빌드(S3/CloudFront)는 same-origin 상대경로 + ALB 라우팅을 사용하므로 프록시 불필요.
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const target = env.VITE_PROXY_TARGET || "http://localhost:8000";
+  // 기본 타깃 = 배포된 백엔드(CloudFront→ALB). 로컬 백엔드로 붙으려면 .env에
+  // VITE_PROXY_TARGET=http://localhost:8000 지정.
+  const target = env.VITE_PROXY_TARGET || "https://d2qg6vlw6822wh.cloudfront.net";
   const wsTarget = target.replace(/^http/, "ws");
 
   // 오케스트레이터/모달/리포트 등 백엔드 경로 — 전부 동일 타깃(ECS ALB 또는 로컬)
@@ -16,6 +18,7 @@ export default defineConfig(({ mode }) => {
     "/predict", "/health", "/ready",       // ML 추론(레거시 직결 + ECS)
     "/mimic", "/triage/submit",            // 트리아지
     "/encounters", "/orders", "/reports",  // v2 진료 플로우
+    "/ops",                                // 운영 모니터링 (health·metrics)
     "/assets", "/devices",
   ];
   const proxy: Record<string, { target: string; changeOrigin: boolean; ws?: boolean }> = {};

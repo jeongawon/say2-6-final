@@ -38,7 +38,7 @@ function DisclaimerFooter() {
           <b className="text-slate-700 dark:text-slate-200">진단 보조 시스템 안내</b> — 본 시스템의 모든 AI 분석 결과는
           의료진의 판단을 돕기 위한 <b className="text-slate-700 dark:text-slate-200">진단 보조 자료</b>이며, 의사를
           대체하지 않습니다. 환자에 대한 최종 진단 및 치료 결정은 반드시 담당 전문의의 임상적 판단과
-          책임 하에 이루어져야 합니다. EMON Med® · 응급 멀티모달 AI 진단 보조.
+          책임 하에 이루어져야 합니다.
         </p>
       </div>
     </footer>
@@ -51,7 +51,6 @@ function Header() {
   const { logout } = useAuth();
   const { dark, toggle } = useDarkMode();
 
-  const isWorklist = pathname.startsWith("/demo/worklist");
   const isTriage = pathname.startsWith("/demo/triage");
   const isDashboard = pathname.startsWith("/demo/dashboard");
   const isReports = pathname.startsWith("/demo/reports");
@@ -71,15 +70,14 @@ function Header() {
     <header className="sticky top-0 z-30 bg-gradient-to-r from-brand-700 via-brand-600 to-ai-accent shadow-md shadow-brand-900/10">
       <div className="max-w-[1600px] mx-auto px-6 h-14 flex items-center gap-6">
         {/* 로고 */}
-        <Link to="/" className="inline-flex items-center gap-2.5 font-bold text-white text-xl tracking-wide">
-          <img src="/EMON.jpg" alt="EMON" className="h-9 w-9 object-contain" style={{ mixBlendMode: "screen" }} />
-          <span>EMON<span className="font-extrabold"> Med</span><sup className="text-xs">®</sup></span>
+        <Link to="/" className="inline-flex items-center gap-3 font-bold text-white text-[26px] tracking-wide">
+          <img src="/EMON.jpg" alt="EMON" className="h-11 w-11 object-contain" style={{ mixBlendMode: "screen" }} />
+          <span>EMON<span className="font-extrabold"> Med</span><sup className="text-sm">®</sup></span>
         </Link>
 
         {/* 메뉴 */}
         <nav className="hidden md:flex items-center gap-1.5 ml-6">
           <NavLink to="/demo/triage"    label="환자정보입력" active={isTriage} />
-          <NavLink to="/demo/worklist"  label="환자 목록" active={isWorklist} />
           <NavButton
             label="AI 분석"
             active={isAnalysis}
@@ -95,7 +93,6 @@ function Header() {
             active={isReportEdit}
             onClick={() => nav(pickReportTarget())}
           />
-          <NavLink to="/demo/reports"   label="종합소견서 목록" active={isReports} />
           <NavLink to="/demo/dashboard" label="운영 모니터링" active={isDashboard} />
         </nav>
 
@@ -188,7 +185,7 @@ function pickAnalysisTarget(): string {
       return a.ktas - b.ktas;
     });
   const p = candidates[0];
-  if (!p) return "/demo/worklist";
+  if (!p) return "/demo/triage";
   const q = isLivePatient(p.id) ? `?encounter_id=${p.id}` : "";
   return `/demo/patient/${p.id}${q}`;
 }
@@ -205,7 +202,7 @@ function pickResultsTarget(): string {
       return a.ktas - b.ktas;
     });
   const p = candidates[0] ?? all[0];
-  if (!p) return "/demo/worklist";
+  if (!p) return "/demo/triage";
   const q = isLivePatient(p.id) ? `?encounter_id=${p.id}` : "";
   return `/demo/patient/${p.id}/results${q}`;
 }

@@ -41,16 +41,12 @@ function bucketize(rows: ReportRow[]): Record<Bucket, ReportRow[]> {
   const ready: ReportRow[] = [];
   for (const r of rows) {
     if (r.status === "signed" || r.status === "amended") continue; // 완료된 건은 어떤 섹션도 X
-    const e = elapsedMin(r.created_at);
-    const overdue = e !== null && e >= OVERDUE_MIN;
 
-    // 검사 완료·작성 가능: 소견서 생성 직후 0~5분 동안만 노출 (preliminary만)
-    if (r.status === "preliminary" && !overdue) ready.push(r);
+    // 소견서 생성 완료 · 확정 대기: preliminary (경과 시간 무관 — 항상 파랑)
+    if (r.status === "preliminary") ready.push(r);
 
-    // 미서명 소견서: 5분 경과해도 서명 안 한 건 (preliminary or reviewed)
-    if ((r.status === "preliminary" || r.status === "reviewed") && overdue) {
-      unsigned.push(r);
-    }
+    // 미서명 소견서: 검토했으나 아직 서명 안 함 (reviewed)
+    if (r.status === "reviewed") unsigned.push(r);
 
     // Critical 환자: 미서명 상태에서 위험도 critical
     if (r.ai_risk_level === "critical") critical.push(r);
@@ -158,8 +154,8 @@ export function NotificationsDropdown() {
           />
           <Section
             icon={<CheckCircle2 className="h-4 w-4" />}
-            color="emerald"
-            title="검사 완료 · 작성 가능"
+            color="blue"
+            title="소견서 생성 완료 · 확정 대기"
             rows={buckets.ready}
             showElapsed
             onClick={goPatient}
@@ -185,7 +181,7 @@ function Section({
   showElapsed = false,
 }: {
   icon: React.ReactNode;
-  color: "purple" | "red" | "emerald";
+  color: "purple" | "red" | "emerald" | "blue";
   title: string;
   rows: ReportRow[];
   onClick: (r: ReportRow) => void;
@@ -197,6 +193,7 @@ function Section({
     purple: "bg-purple-50 text-purple-700 dark:bg-purple-500/15 dark:text-purple-300",
     red: "bg-red-50 text-red-700 dark:bg-red-500/15 dark:text-red-300",
     emerald: "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300",
+    blue: "bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300",
   }[color];
   return (
     <div>
@@ -214,17 +211,12 @@ function Section({
             onClick={() => onClick(r)}
             className={cn(
               "w-full text-left px-4 py-2.5 border-b flex items-start gap-3 transition-colors",
-              overdue
-                ? "border-red-200 bg-red-50/40 hover:bg-red-50 dark:border-red-500/30 dark:bg-red-500/10 dark:hover:bg-red-500/15"
-                : "border-slate-100 hover:bg-slate-50 dark:border-vuno-divider dark:hover:bg-vuno-elevated",
+              "border-slate-100 hover:bg-slate-50 dark:border-vuno-divider dark:hover:bg-vuno-elevated",
             )}
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-1.5 min-w-0">
-                <span className={cn(
-                  "text-[13px] font-bold truncate",
-                  overdue ? "text-red-700 dark:text-red-300" : "text-slate-900 dark:text-white",
-                )}>
+                <span className="text-[13px] font-bold truncate text-slate-900 dark:text-white">
                   {r.patient_name ?? r.subject_id ?? "환자"}
                 </span>
                 {r.subject_id && (
@@ -233,21 +225,13 @@ function Section({
                   </span>
                 )}
                 {elapsed !== null && (
-                  <span className={cn(
-                    "ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded",
-                    overdue
-                      ? "bg-red-100 text-red-700 border border-red-300 dark:bg-red-500/20 dark:text-red-300 dark:border-red-500/40"
-                      : "bg-slate-100 text-slate-600 dark:bg-vuno-bg dark:text-vuno-muted",
-                  )}>
+                  <span className="ml-auto shrink-0 px-1.5 py-0.5 text-[10px] font-bold rounded bg-blue-50 text-blue-700 border border-blue-200 dark:bg-blue-500/15 dark:text-blue-300 dark:border-blue-500/40">
                     {elapsed === 0 ? "방금" : `${elapsed}분 경과`}
                   </span>
                 )}
               </div>
               {r.chief_complaint && (
-                <div className={cn(
-                  "text-[12px] truncate mt-0.5",
-                  overdue ? "text-red-600 dark:text-red-300" : "text-slate-500 dark:text-vuno-muted",
-                )}>{r.chief_complaint}</div>
+                <div className="text-[12px] truncate mt-0.5 text-slate-500 dark:text-vuno-muted">{r.chief_complaint}</div>
               )}
             </div>
             <div className="text-[11px] text-slate-400 dark:text-vuno-dim font-numeric whitespace-nowrap">

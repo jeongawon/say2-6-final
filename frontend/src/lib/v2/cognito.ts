@@ -29,12 +29,99 @@ export interface CognitoIdTokenPayload {
   email?: string;
   name?: string;
   "cognito:groups"?: string[];      // 예: ["doctor"] 또는 ["nurse"]
-  "cognito:username"?: string;
+  "cognito:username"?: string;      // = 사번 (DR001, NR001)
+  "custom:role"?: string;           // 사번 기반 역할 (doctor/nurse)
+  preferred_username?: string;
   exp: number;
   iat: number;
 }
 
 const TOKEN_STORAGE_KEY = "say6_cognito_tokens";
+
+// Cognito IDP REST 엔드포인트 (USER_PASSWORD_AUTH 직접 로그인용)
+function idpUrl(): string {
+  const region = import.meta.env.VITE_COGNITO_REGION
+    || (import.meta.env.VITE_COGNITO_USER_POOL_ID?.split("_")[0])
+    || "ap-northeast-2";
+  return `https://cognito-idp.${region}.amazonaws.com/`;
+}
+
+async function cognitoIdp(target: string, body: Record<string, unknown>): Promise<any> {
+  const res = await fetch(idpUrl(), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-amz-json-1.1",
+      "X-Amz-Target": `AWSCognitoIdentityProviderService.${target}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const code = String(json.__type || "").split("#").pop() || "";
+    const err = new Error(json.message || "Cognito 요청 실패") as Error & { code?: string };
+    err.code = code;
+    throw err;
+  }
+  return json;
+}
+
+function toTokens(ar: any, fallbackRefresh?: string): CognitoTokens {
+  const tokens: CognitoTokens = {
+    idToken: ar.IdToken,
+    accessToken: ar.AccessToken,
+    refreshToken: ar.RefreshToken ?? fallbackRefresh ?? "",
+    expiresAt: Date.now() + (ar.ExpiresIn ?? 3600) * 1000,
+  };
+  saveTokens(tokens);
+  return tokens;
+}
+
+export type PasswordAuthResult =
+  | { status: "success"; tokens: CognitoTokens }
+  | { status: "new_password_required"; session: string; username: string };
+
+// ─────────────────────────────────────────────────────────────
+// 1b. 사번 + 비밀번호 직접 로그인 (USER_PASSWORD_AUTH) — Hosted UI 미사용
+// ─────────────────────────────────────────────────────────────
+export async function signInWithPassword(username: string, password: string): Promise<PasswordAuthResult> {
+  const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const json = await cognitoIdp("InitiateAuth", {
+    AuthFlow: "USER_PASSWORD_AUTH",
+    ClientId: clientId,
+    AuthParameters: { USERNAME: username, PASSWORD: password },
+  });
+  if (json.ChallengeName === "NEW_PASSWORD_REQUIRED") {
+    return { status: "new_password_required", session: json.Session, username };
+  }
+  return { status: "success", tokens: toTokens(json.AuthenticationResult) };
+}
+
+// 첫 로그인 — 관리자 발급 임시 비밀번호 → 새 비밀번호로 변경
+export async function completeNewPassword(username: string, newPassword: string, session: string): Promise<CognitoTokens> {
+  const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  const json = await cognitoIdp("RespondToAuthChallenge", {
+    ChallengeName: "NEW_PASSWORD_REQUIRED",
+    ClientId: clientId,
+    Session: session,
+    ChallengeResponses: { USERNAME: username, NEW_PASSWORD: newPassword },
+  });
+  return toTokens(json.AuthenticationResult);
+}
+
+// Refresh Token으로 Access/Id 토큰 갱신 (Access 1h / Refresh 30d 정책)
+export async function refreshTokens(refreshToken: string): Promise<CognitoTokens | null> {
+  const clientId = import.meta.env.VITE_COGNITO_CLIENT_ID;
+  try {
+    const json = await cognitoIdp("InitiateAuth", {
+      AuthFlow: "REFRESH_TOKEN_AUTH",
+      ClientId: clientId,
+      AuthParameters: { REFRESH_TOKEN: refreshToken },
+    });
+    return toTokens(json.AuthenticationResult, refreshToken);
+  } catch {
+    return null;
+  }
+}
 
 // ─────────────────────────────────────────────────────────────
 // 1. 로그인 — Cognito Hosted UI로 redirect
@@ -115,6 +202,17 @@ export function roleFromGroups(groups?: string[]): UserRole | undefined {
   return undefined;
 }
 
+// IdToken 페이로드 → UserRole (custom:role 우선, 없으면 사번 접두사 DR/NR)
+export function roleFromPayload(p: CognitoIdTokenPayload): UserRole {
+  const fromGroups = roleFromGroups(p["cognito:groups"]);
+  if (fromGroups) return fromGroups;
+  const cr = (p["custom:role"] || "").toLowerCase();
+  if (cr.includes("nurse") || cr.startsWith("nr")) return "nurse";
+  if (cr.includes("doctor") || cr.startsWith("dr")) return "doctor";
+  const uname = (p["cognito:username"] || p.preferred_username || "").toUpperCase();
+  return uname.startsWith("NR") ? "nurse" : "doctor";
+}
+
 // ─────────────────────────────────────────────────────────────
 // 4. 토큰 저장/조회 (localStorage)
 //    NOTE: 프로덕션에서는 HttpOnly cookie + Backend session 권장
@@ -168,21 +266,9 @@ export async function authFetch(input: RequestInfo | URL, init?: RequestInit): P
 }
 
 // ─────────────────────────────────────────────────────────────
-// 6. 로그아웃 — Cognito Hosted UI logout endpoint
+// 6. 로그아웃 — 토큰 폐기 후 로그인 화면으로 (Hosted UI 미사용)
 // ─────────────────────────────────────────────────────────────
 export function signOut(): void {
   clearTokens();
-  const domain      = import.meta.env.VITE_COGNITO_DOMAIN;
-  const clientId    = import.meta.env.VITE_COGNITO_CLIENT_ID;
-  const redirectUri = import.meta.env.VITE_COGNITO_REDIRECT_URI;
-
-  if (!domain || !clientId) {
-    window.location.href = "/demo/login";
-    return;
-  }
-
-  const url = new URL(`https://${domain}/logout`);
-  url.searchParams.set("client_id", clientId);
-  url.searchParams.set("logout_uri", redirectUri ?? window.location.origin);
-  window.location.href = url.toString();
+  window.location.href = "/demo/login";
 }

@@ -54,7 +54,9 @@ export function CXRView({
   const imgSize = (meta.image_size as [number, number]) || [3056, 2544];
   const [W, H] = imgSize;
 
-  const cxrSrc = `/assets/cxr/${subjectId}${cacheKey ? `?v=${cacheKey}` : ""}`;
+  // /mimic/* 는 CloudFront가 ALB(백엔드)로 라우팅 → 운영에서도 이미지 로드됨.
+  // (/assets/* 는 S3로 가서 SPA index.html이 반환되어 CXR 이미지가 깨졌었음.)
+  const cxrSrc = `/mimic/cxr/${subjectId}${cacheKey ? `?v=${cacheKey}` : ""}`;
   const maskSrc = meta.mask_base64
     ? `data:image/png;base64,${meta.mask_base64 as string}`
     : null;

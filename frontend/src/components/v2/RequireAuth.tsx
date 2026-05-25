@@ -21,7 +21,7 @@ export default function RequireAuth({ children, roles }: Props) {
   }
 
   if (roles && !roles.includes(user.role)) {
-    return <Navigate to="/demo/worklist" replace />;
+    return <Navigate to="/demo/triage" replace />;
   }
 
   return <>{children}</>;

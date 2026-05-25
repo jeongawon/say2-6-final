@@ -42,7 +42,7 @@ export default function AuthCallbackPage() {
           return;
         }
         // 새로고침해서 AuthProvider가 토큰을 다시 로드하도록 함
-        window.location.href = "/demo/worklist";
+        window.location.href = "/demo/triage";
       } catch (e) {
         setError(e instanceof Error ? e.message : "토큰 교환 실패");
       }

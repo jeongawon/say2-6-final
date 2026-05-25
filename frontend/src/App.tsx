@@ -19,14 +19,12 @@ import ContactPage from "./pages/brand/ContactPage";
 // ──────────────────────────────────────────────────────────
 import V2LoginPage from "./pages/v2/LoginPage";
 import V2AuthCallbackPage from "./pages/v2/AuthCallbackPage";
-import V2WorklistPage from "./pages/v2/WorklistPage";
 import V2PatientDetailPage from "./pages/v2/PatientDetailPage";
 import V2PatientResultsPage from "./pages/v2/PatientResultsPage";
 import V2ReportEditorPage from "./pages/v2/ReportEditorPage";
 import V2ReportViewerPage from "./pages/v2/ReportViewerPage";
 import V2TriagePage from "./pages/v2/TriagePage";
 import V2AdminDashboardPage from "./pages/v2/AdminDashboardPage";
-import V2ReportListPage from "./pages/v2/ReportListPage";
 
 // ──────────────────────────────────────────────────────────
 // 📦 Legacy EMR (기존 12페이지 — 점진적으로 v2로 마이그레이션 예정)
@@ -73,15 +71,14 @@ export default function App() {
         <Route path="/demo/triage" element={
           <V2RequireAuth><V2TriagePage /></V2RequireAuth>
         } />
-        <Route path="/demo/worklist" element={
-          <V2RequireAuth><V2WorklistPage /></V2RequireAuth>
-        } />
+        {/* 환자 목록(worklist) 페이지 제거 — 진입점은 환자정보입력(triage) 단일화.
+            기존 링크 호환을 위해 /demo/worklist 는 triage 로 리다이렉트. */}
+        <Route path="/demo/worklist" element={<Navigate to="/demo/triage" replace />} />
         <Route path="/demo/dashboard" element={
           <V2RequireAuth><V2AdminDashboardPage /></V2RequireAuth>
         } />
-        <Route path="/demo/reports" element={
-          <V2RequireAuth><V2ReportListPage /></V2RequireAuth>
-        } />
+        {/* 종합소견서 목록 페이지 제거 — 기존 링크는 환자정보입력으로 리다이렉트 */}
+        <Route path="/demo/reports" element={<Navigate to="/demo/triage" replace />} />
         <Route path="/demo/patient/:id" element={
           <V2RequireAuth><V2PatientDetailPage /></V2RequireAuth>
         } />

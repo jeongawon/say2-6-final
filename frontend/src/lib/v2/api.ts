@@ -3,6 +3,7 @@
 // 백엔드(localhost:8000)가 안 떠 있으면 모든 함수가 null 을 반환 → 호출부에서 demoStore 폴백.
 
 import type { ModalRawResponse } from "../../components/modal-views/ModalViews";
+import { CHIEF_COMPLAINT_LABELS, type ChiefComplaint } from "../../types/triage";
 
 /* ── 타입 ───────────────────────────────────────────────── */
 export interface TriageVitalsInput {
@@ -20,6 +21,9 @@ export interface TriageSubmitInput {
   sex: "M" | "F";
   vitals: TriageVitalsInput;
   chief: string;
+  // 영문 주호소 코드 — 백엔드 CC Map(영문 MIMIC) 라우팅용. 데모 케이스에서 전달.
+  // 있으면 chief_complaint.text=영문(CC Map 매칭), chief(한국어)는 detail로.
+  chiefCode?: ChiefComplaint;
   pastHistory: string[];
   allergies?: string;
   medications?: string;
@@ -92,6 +96,10 @@ export async function submitTriage(
   input: TriageSubmitInput,
 ): Promise<TriageSubmitResult | null> {
   const fhirGender = input.sex === "M" ? "male" : input.sex === "F" ? "female" : "unknown";
+  // CC Map은 영문 MIMIC 기준 — 영문 코드가 있으면 text=영문(라우팅), 한국어 chief는 detail로.
+  // 코드가 없으면(수동 입력) 기존대로 chief를 text로 사용.
+  const ccText = input.chiefCode ? CHIEF_COMPLAINT_LABELS[input.chiefCode].en : input.chief || "other";
+  const ccDetail = input.chiefCode ? input.chief || null : null;
   const payload = {
     patient: { name: input.name, age: input.age, gender: fhirGender },
     vitals: {
@@ -105,8 +113,8 @@ export async function submitTriage(
       gcs: 15,
     },
     chief_complaint: {
-      text: input.chief || "other",
-      detail: null,
+      text: ccText,
+      detail: ccDetail,
       onset_minutes_ago: 0,
     },
     past_history: input.pastHistory.map((code) => ({ text: code })),
@@ -152,6 +160,51 @@ export async function getReportByEncounter(
   encounterId: string,
 ): Promise<ReportRow | null> {
   return jsonFetch<ReportRow>(`/reports/by-encounter/${encounterId}`);
+}
+
+/* ── GET /encounters/list — 실제 등록된 환자(워크리스트) 상태 ── */
+export interface EncounterListItem {
+  encounter_id: string;
+  subject_id: string | null;
+  patient_name: string | null;
+  chief_complaint: string | null;
+  report_status: ReportStatus | null;   // null이면 아직 소견서 없음
+  ai_risk_level: string | null;
+}
+export async function listEncounters(
+  status = "active",
+  limit = 50,
+): Promise<EncounterListItem[] | null> {
+  const data = await jsonFetch<EncounterListItem[]>(
+    `/encounters/list?status=${status}&limit=${limit}`,
+  );
+  return Array.isArray(data) ? data : null;
+}
+
+/* ── GET /ops/health — 모달 추론 서버 실시간 상태 (ECG/CXR/LAB) ──
+   응답: {"ECG":true,"CXR":true,"LAB":true}. 서버 끊기면 false → UI 자동 "비활성". */
+export async function getModalHealth(): Promise<Record<ModalKey, boolean> | null> {
+  return jsonFetch<Record<ModalKey, boolean>>(`/ops/health`);
+}
+
+/* ── GET /ops/metrics — 실제 CloudWatch 운영 메트릭 (운영 모니터링 대시보드) ── */
+export interface OpsPoint { t: string; v: number }
+export interface OpsServiceMetric {
+  key: string; label: string;
+  running: number | null; desired: number | null;
+  cpu: OpsPoint[]; mem: OpsPoint[];
+}
+export interface OpsAlarm { sev: "critical" | "warning"; name: string; metric: string; value: string; threshold: string; since: string }
+export interface OpsMetrics {
+  region?: string;
+  services: OpsServiceMetric[];
+  alb: { req?: OpsPoint[]; elb5xx?: OpsPoint[]; tgt5xx?: OpsPoint[]; p50?: OpsPoint[]; p90?: OpsPoint[]; p99?: OpsPoint[] };
+  aurora: { cpu?: OpsPoint[]; acu?: OpsPoint[]; conn?: OpsPoint[]; mem?: OpsPoint[] };
+  alarms: OpsAlarm[];
+  error?: string;
+}
+export async function getOpsMetrics(): Promise<OpsMetrics | null> {
+  return jsonFetch<OpsMetrics>(`/ops/metrics`);
 }
 
 /* ── PATCH /reports/{id}/review — 의사 검토 (status → reviewed) ── */
@@ -216,7 +269,7 @@ export async function requestOrder(
       encounter_id: encounterId,
       patient_id: patientId,
       modality,
-      reason: reason || `의사 직접 오더: ${modality}`,
+      reason: reason || `의사 직접 지시: ${modality}`,
       priority: "routine",
     }),
   });
@@ -264,7 +317,7 @@ export function parseRecommendations(srList: unknown[]): AIRec[] {
       status: String(sr.status || ""),
       reason,
       authoredOn: String(sr.authoredOn || ""),
-      isManual: /^의사\s*직접\s*오더/.test(reason),
+      isManual: /^의사\s*직접\s*(지시|오더)/.test(reason),
     });
   }
   rows.sort((a, b) => a.authoredOn.localeCompare(b.authoredOn));
@@ -272,7 +325,7 @@ export function parseRecommendations(srList: unknown[]): AIRec[] {
   const TIME_CLUSTER_MS = 5_000;
   let rank = 1;
   let prevMs = 0;
-  return rows.map((r) => {
+  const ranked: AIRec[] = rows.map((r) => {
     if (r.isManual) {
       // 의사 오더는 rank 계산·전이에 영향 없음. 표기상 1로 두지만 isManual=true로 별도 처리.
       return { ...r, rank: 1 as 1 | 2 | 3 };
@@ -282,4 +335,34 @@ export function parseRecommendations(srList: unknown[]): AIRec[] {
     if (!isNaN(t)) prevMs = t;
     return { ...r, rank: rank as 1 | 2 | 3 };
   });
+
+  // 이미 '완료'된 모달은 같은 모달의 미완료 권고(승인 대기·진행 중)를 가린다.
+  // 예: 의사가 LAB을 직접 오더해 완료 → AI가 ECG 기반으로 만든 2차 LAB '승인 대기' SR이
+  //     남아 '2차 권고 LAB 승인 대기' + '의사 직접 오더 LAB 완료'로 모순 표시되는 것을 방지.
+  const completedMods = new Set(
+    ranked.filter((r) => r.status === "completed").map((r) => r.modality),
+  );
+  const filtered = ranked.filter(
+    (r) => r.status === "completed" || !completedMods.has(r.modality),
+  );
+
+  // 모달 단위 중복 제거 — AI 권고·의사 오더 통합.
+  // (백엔드가 동일 권고를 시간차로 중복 생성하거나, AI 권고와 의사 오더가 같은 모달로
+  //  겹치면 하나로 합친다.) 가장 진행된 상태(완료>분석중>대기)를 남기고,
+  // 차수(rank)는 가장 이른 값을 유지한다.
+  const sRank = (s: string) => (s === "completed" ? 3 : s === "active" ? 2 : 1);
+  const idxByModality = new Map<ModalKey, number>();
+  const out: AIRec[] = [];
+  for (const r of filtered) {
+    const idx = idxByModality.get(r.modality);
+    if (idx === undefined) {
+      idxByModality.set(r.modality, out.length);
+      out.push(r);
+    } else {
+      const ex = out[idx];
+      const rankKept = Math.min(ex.rank, r.rank) as 1 | 2 | 3;
+      out[idx] = sRank(r.status) > sRank(ex.status) ? { ...r, rank: rankKept } : { ...ex, rank: rankKept };
+    }
+  }
+  return out;
 }

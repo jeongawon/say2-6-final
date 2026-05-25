@@ -15,11 +15,11 @@ export function LiveBadge({ status, className }: { status: WsStatus; className?:
     <span
       title={isLive ? "백엔드와 실시간 연결됨 (WebSocket)" : "재연결 시도 중 — 10초 폴링으로 fallback"}
       className={cn(
-        "inline-flex items-center gap-1.5 h-5 px-2 border rounded-full text-[10px] font-bold tracking-wider",
+        "inline-flex items-center gap-1.5 h-7 px-3 border rounded-full text-[12px] font-bold tracking-wider",
         bg, text, className,
       )}
     >
-      <span className={cn("inline-block h-1.5 w-1.5 rounded-full ring-2", dot, ring, isLive && "animate-pulse")} />
+      <span className={cn("inline-block h-2 w-2 rounded-full ring-2", dot, ring, isLive && "animate-pulse")} />
       {label}
     </span>
   );

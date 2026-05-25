@@ -6,7 +6,7 @@
 
 import type { PatientCardData } from "../../components/v2/PatientCard";
 import type { AIRecommendation } from "../../components/v2/AIRecommendationPanel";
-import type { Vitals, QueuePatient, PastHistoryCode } from "../../types/triage";
+import type { Vitals, QueuePatient, PastHistoryCode, ChiefComplaint } from "../../types/triage";
 import { CHIEF_COMPLAINT_LABELS } from "../../types/triage";
 import { DEMO_CASES_4 } from "../../data/triage_demo_cases_4";
 import { DEMO_PATIENTS_50 } from "../../data/triage_demo_50";
@@ -26,6 +26,8 @@ export interface DemoPatient extends PatientCardData {
   notes?: string; // 트리아지 메모 / 특이사항
   // 데모 케이스의 MIMIC 원본 식별자 — 백엔드 모달 호출용 (submitTriage의 mimic 필드)
   mimic?: { subject_id?: string; cxr_image_path?: string; ecg_record_path?: string } | null;
+  // 영문 주호소 코드 — 백엔드 CC Map(영문 MIMIC) 라우팅용. chief(한국어)와 별개로 보존.
+  chiefCode?: ChiefComplaint;
 }
 
 function nowMinus(min: number): string {
@@ -176,6 +178,7 @@ function fromQueuePatient(
     sex: p.sex,
     ktas: p.ktas,
     chief: p.complaint_detail || CHIEF_COMPLAINT_LABELS[p.chief_complaint]?.ko || "기타",
+    chiefCode: p.chief_complaint,
     registeredAt: p.registered_at,
     arrivedAt: p.arrived_at,
     ecg: "pending", cxr: "pending", lab: "pending",
@@ -365,8 +368,27 @@ export function isLivePatient(id: string): boolean {
   return LIVE_PATIENTS.has(id);
 }
 
+// "최근 등록" 전용 — 실제 트리아지로 등록된 라이브 환자만 (데모/테스트 케이스 제외).
+// 최신 등록순 정렬. DB/세션 비우면 비고, 트리아지하면 추가됨.
+export function getLivePatients(): DemoPatient[] {
+  return [...LIVE_PATIENTS.values()].sort((a, b) =>
+    (b.registeredAt ?? "").localeCompare(a.registeredAt ?? ""),
+  );
+}
+
 export function getAllPatients(): DemoPatient[] {
-  return [...LIVE_PATIENTS.values(), ...DEMO_PATIENTS];
+  // 라이브(트리아지 등록) 우선 + 데모 케이스. 같은 환자(subject_id/MRN)가
+  // 데모·라이브 양쪽에 있으면 1건만 노출 (중복 방지). 라이브가 먼저라 라이브가 이김.
+  const merged = [...LIVE_PATIENTS.values(), ...DEMO_PATIENTS];
+  const seen = new Set<string>();
+  const out: DemoPatient[] = [];
+  for (const p of merged) {
+    const key = p.mimic?.subject_id ?? p.mrn ?? p.id;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(p);
+  }
+  return out;
 }
 
 export function findPatient(id: string): DemoPatient | undefined {
@@ -374,5 +396,25 @@ export function findPatient(id: string): DemoPatient | undefined {
     DEMO_PATIENTS.find((p) => p.id === id) ??
     SHOWCASE_PATIENTS.find((p) => p.id === id) ??
     LIVE_PATIENTS.get(id)
+  );
+}
+
+// ── 현재(최근 조회/등록) 환자 ──
+// 단일 환자 컨텍스트가 없는 페이지(소견서 목록·운영 모니터링)의 좌측 사이드바용.
+// 우선순위: 명시적으로 set한 환자 → 가장 최근 등록 라이브 환자 → 첫 데모 환자(폴백).
+let _currentPatientId: string | null =
+  (typeof localStorage !== "undefined" && localStorage.getItem("say6.currentPatient")) || null;
+
+export function setCurrentPatientId(id: string): void {
+  _currentPatientId = id;
+  try { localStorage.setItem("say6.currentPatient", id); } catch { /* ignore */ }
+}
+
+export function getCurrentPatient(): DemoPatient {
+  const live = [...LIVE_PATIENTS.values()];
+  return (
+    (_currentPatientId ? findPatient(_currentPatientId) : undefined) ??
+    live[live.length - 1] ??
+    DEMO_PATIENTS[0]
   );
 }
